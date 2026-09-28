@@ -11,6 +11,44 @@ window.SMN_DATA = (() => {
   function cols(rows){if(!rows?.length)return{a:[],b:[],desc:[],sev:[]};const h=Object.keys(rows[0]);return{a:h.filter(x=>/(drug.?1|drug.?a|subject|precipitant|primary)/i.test(x)),b:h.filter(x=>/(drug.?2|drug.?b|object|affected|secondary)/i.test(x)),desc:h.filter(x=>/(interaction|description|sentence|label|text|effect)/i.test(x)),sev:h.filter(x=>/(severity|risk|level)/i.test(x))}}
   async function findDDIForGeneric(generic,cb,limit=60){const q=String(generic||"").toLowerCase().trim();if(!q)return[];const rows=await loadDDI(cb),c=cols(rows),out=[];for(const r of rows){const whole=Object.values(r).join(" ").toLowerCase();if(!whole.includes(q))continue;const va=c.a.map(k=>String(r[k]||"")).join(" "),vb=c.b.map(k=>String(r[k]||"")).join(" ");let other="";if(va.toLowerCase().includes(q))other=vb;else if(vb.toLowerCase().includes(q))other=va;out.push({other,description:c.desc.map(k=>r[k]).find(Boolean)||"",severity:c.sev.map(k=>r[k]).find(Boolean)||""});if(out.length>=limit)break}return out}
   async function checkPair(a,b,cb,limit=10){const x=String(a||"").toLowerCase().trim(),y=String(b||"").toLowerCase().trim();if(!x||!y)return[];const rows=await loadDDI(cb),c=cols(rows),out=[];for(const r of rows){const whole=Object.values(r).join(" ").toLowerCase();if(!(whole.includes(x)&&whole.includes(y)))continue;out.push({description:c.desc.map(k=>r[k]).find(Boolean)||"",severity:c.sev.map(k=>r[k]).find(Boolean)||""});if(out.length>=limit)break}return out}
-  async function loadOpenFDALabel(generic){const key=String(generic||"").trim().toLowerCase();if(!key)return null;if(cache.labels.has(key))return cache.labels.get(key);try{const q=encodeURIComponent(`openfda.generic_name:"${generic}"`),r=await fetch(`${OPENFDA}?search=${q}&limit=3`,{cache:"force-cache"});if(!r.ok){cache.labels.set(key,null);return null}const j=await r.json(),x=j.results?.[0]||null;cache.labels.set(key,x);return x}catch(e){cache.labels.set(key,null);return null}}
+  async function loadOpenFDALabel(generic, brand=""){
+    const key=(String(generic||"")+"|"+String(brand||"")).trim().toLowerCase();
+    if(!key)return null;
+    if(cache.labels.has(key))return cache.labels.get(key);
+
+    const clean = s => String(s||"")
+      .replace(/\([^)]*\)/g," ")
+      .replace(/\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|%|mg\/ml|mg\/5 ml)\b/gi," ")
+      .replace(/\s+/g," ").trim();
+
+    const genericClean=clean(generic);
+    const brandClean=clean(brand);
+    const parts=genericClean.split(/\s*\+\s*|\s*&\s*|\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+
+    const queries=[];
+    if(genericClean) queries.push(`openfda.generic_name:"${genericClean}"`);
+    if(genericClean) queries.push(`openfda.substance_name:"${genericClean}"`);
+    if(brandClean) queries.push(`openfda.brand_name:"${brandClean}"`);
+    for(const p of parts.slice(0,4)){
+      if(p.length>2){
+        queries.push(`openfda.substance_name:"${p}"`);
+        queries.push(`openfda.generic_name:"${p}"`);
+      }
+    }
+
+    for(const q0 of queries){
+      try{
+        const q=encodeURIComponent(q0);
+        const r=await fetch(`${OPENFDA}?search=${q}&limit=5`,{cache:"force-cache"});
+        if(!r.ok)continue;
+        const j=await r.json();
+        const x=j.results?.[0]||null;
+        if(x){cache.labels.set(key,x);return x}
+      }catch(e){}
+    }
+
+    cache.labels.set(key,null);
+    return null;
+  }
   return {MEDICINE_URL,DDI_URL,OPENFDA,loadMedicineCorpus,loadDDI,findDDIForGeneric,checkPair,loadOpenFDALabel};
 })();

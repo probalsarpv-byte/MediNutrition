@@ -291,5 +291,144 @@ window.SMN_RULES = [
     "action_bn": "Clinical context অনুযায়ী electrolyte monitor করুন।",
     "action_en": "Monitor electrolytes according to clinical context.",
     "source": "Guideline/label"
+  },
+  {
+    "id": "ANTACID_LEVO",
+    "generic": [
+      "aluminium hydroxide + magnesium hydroxide",
+      "aluminum hydroxide + magnesium hydroxide",
+      "magnesium hydroxide"
+    ],
+    "type": "supplement",
+    "with_bn": "লেভোথাইরক্সিন ও কিছু ওষুধ",
+    "with_en": "Levothyroxine and some oral medicines",
+    "severity": "timing",
+    "bn": "Aluminium/Magnesium antacid কিছু ওষুধের absorption কমাতে পারে।",
+    "en": "Aluminium/magnesium antacids can reduce absorption of some oral medicines.",
+    "pro": "Antacid cations can bind or alter absorption of susceptible oral drugs.",
+    "action_bn": "অন্য oral medicine থেকে ব্যবধান রাখার প্রয়োজন হতে পারে; product label অনুসরণ করুন।",
+    "action_en": "Spacing from other oral medicines may be required; follow the product label.",
+    "source": "Product labels/clinical references"
+  },
+  {
+    "id": "ANTACID_FOOD",
+    "generic": [
+      "aluminium hydroxide + magnesium hydroxide",
+      "aluminum hydroxide + magnesium hydroxide"
+    ],
+    "type": "food",
+    "with_bn": "খাবারের সময়",
+    "with_en": "Meal timing",
+    "severity": "context",
+    "bn": "Antacid কখন খাবারের সাথে বা খাবারের পরে নেওয়া হবে তা product-specific হতে পারে।",
+    "en": "Whether an antacid is taken with or after meals can be product-specific.",
+    "pro": "Administration timing varies by formulation and indication.",
+    "action_bn": "প্যাকেট/label-এর নির্দেশনা অনুসরণ করুন।",
+    "action_en": "Follow the product-specific label instructions.",
+    "source": "Product label"
+  },
+  {
+    "id": "ANTACID_NUTRIENT",
+    "generic": [
+      "aluminium hydroxide + magnesium hydroxide",
+      "aluminum hydroxide + magnesium hydroxide"
+    ],
+    "type": "nutrient",
+    "with_bn": "ফসফেট ও ম্যাগনেসিয়াম balance",
+    "with_en": "Phosphate and magnesium balance",
+    "severity": "monitor",
+    "bn": "দীর্ঘমেয়াদি বা বেশি ব্যবহারে mineral balance প্রভাবিত হতে পারে, বিশেষত kidney disease থাকলে।",
+    "en": "Prolonged or heavy use can affect mineral balance, especially with kidney disease.",
+    "pro": "Aluminium-containing antacids may lower phosphate; magnesium can accumulate in renal impairment.",
+    "action_bn": "দীর্ঘমেয়াদি ব্যবহার বা kidney disease থাকলে clinician review প্রয়োজন।",
+    "action_en": "Seek clinician review for long-term use or kidney disease.",
+    "source": "Clinical references/product labels"
+  },
+  {
+    "id": "CALCIUM_FQ",
+    "generic": [
+      "calcium carbonate",
+      "calcium carbonate + vitamin d3"
+    ],
+    "type": "supplement",
+    "with_bn": "Fluoroquinolone antibiotics",
+    "with_en": "Fluoroquinolone antibiotics",
+    "severity": "timing",
+    "bn": "ক্যালসিয়াম কিছু fluoroquinolone antibiotic-এর absorption কমাতে পারে।",
+    "en": "Calcium can reduce absorption of some fluoroquinolone antibiotics.",
+    "pro": "Chelation with polyvalent cations reduces oral bioavailability.",
+    "action_bn": "Label অনুযায়ী ব্যবধান রাখুন।",
+    "action_en": "Separate according to the product label.",
+    "source": "Product label"
+  },
+  {
+    "id": "IRON_FQ",
+    "generic": [
+      "ferrous fumarate",
+      "ferrous sulfate",
+      "iron"
+    ],
+    "type": "supplement",
+    "with_bn": "কিছু antibiotic ও levothyroxine",
+    "with_en": "Some antibiotics and levothyroxine",
+    "severity": "timing",
+    "bn": "Iron কিছু ওষুধের absorption কমাতে পারে।",
+    "en": "Iron can reduce absorption of some medicines.",
+    "pro": "Iron can chelate or bind susceptible drugs, reducing absorption.",
+    "action_bn": "Product label অনুযায়ী spacing রাখুন।",
+    "action_en": "Use spacing according to the product label.",
+    "source": "Product labels"
+  },
+  {
+    "id": "NSAID_FOOD",
+    "generic": [
+      "ibuprofen",
+      "naproxen",
+      "diclofenac"
+    ],
+    "type": "food",
+    "with_bn": "খাবার",
+    "with_en": "Food",
+    "severity": "context",
+    "bn": "পেটের অস্বস্তি কমাতে অনেক NSAID খাবারের সাথে নেওয়া হয়, তবে label-specific নির্দেশনা অনুসরণ করা উচিত।",
+    "en": "Many NSAIDs are taken with food to reduce stomach upset, but follow product-specific directions.",
+    "pro": "Food may reduce dyspepsia though it can alter absorption rate.",
+    "action_bn": "Product-specific নির্দেশনা অনুসরণ করুন।",
+    "action_en": "Follow product-specific directions.",
+    "source": "Product labels/clinical guidance"
+  },
+  {
+    "id": "PRED_FOOD",
+    "generic": [
+      "prednisolone",
+      "prednisone",
+      "dexamethasone"
+    ],
+    "type": "food",
+    "with_bn": "খাবার",
+    "with_en": "Food",
+    "severity": "context",
+    "bn": "পেটের অস্বস্তি কমাতে corticosteroid খাবারের সাথে নেওয়া হতে পারে।",
+    "en": "Corticosteroids may be taken with food to reduce stomach upset.",
+    "pro": "Administration with food may improve GI tolerability.",
+    "action_bn": "Label/clinician-এর নির্দেশনা অনুসরণ করুন।",
+    "action_en": "Follow label/clinician instructions.",
+    "source": "Product labels"
+  },
+  {
+    "id": "MET_FOOD",
+    "generic": [
+      "metformin"
+    ],
+    "type": "food",
+    "with_bn": "খাবার",
+    "with_en": "Food",
+    "severity": "timing",
+    "bn": "Metformin সাধারণত খাবারের সাথে নিলে পেটের পার্শ্বপ্রতিক্রিয়া কম হতে পারে।",
+    "en": "Metformin is commonly taken with meals to reduce gastrointestinal side effects.",
+    "pro": "Administration with meals improves GI tolerability.",
+    "action_bn": "Prescription/label অনুযায়ী meal timing অনুসরণ করুন।",
+    "action_en": "Follow prescribed meal timing.",
+    "source": "Product label"
   }
 ];
