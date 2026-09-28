@@ -33,3 +33,44 @@ body[data-theme="day"] .bottom button{color:#0c2a22}
 .graph-legend span{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;border-radius:999px;background:#edf8f2}
 .graph-legend b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#19c98f;color:#052018}
 .source-link,.modal a.secondary{text-decoration:none;display:inline-flex}
+
+
+/* ===== V5.1.2 MODAL EXIT FIX ===== */
+body.modal-open{overflow:hidden}
+.modal-card{position:relative}
+.modal-head{
+  position:sticky;
+  top:-22px;
+  z-index:12;
+  padding:10px 0 12px;
+  background:inherit;
+}
+.close{
+  position:sticky;
+  top:8px;
+  flex:0 0 auto;
+  width:44px;
+  height:44px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:rgba(0,0,0,.35);
+  color:#fff;
+  font-size:30px;
+  line-height:1;
+  font-weight:900;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);
+}
+.close:hover{transform:scale(1.05)}
+body[data-theme="day"] .close{
+  background:#ffffff;
+  color:#0c2a22;
+  border-color:rgba(12,42,34,.16);
+}
+@media(max-width:620px){
+  .modal{padding:8px}
+  .modal-card{max-height:96vh;padding:15px;border-radius:18px}
+  .modal-head{top:-15px;padding-top:6px}
+  .close{width:42px;height:42px;font-size:28px}
+}

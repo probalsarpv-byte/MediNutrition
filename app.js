@@ -9,6 +9,26 @@ const $=(s,c=document)=>c.querySelector(s),$$=(s,c=document)=>[...c.querySelecto
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 const norm=s=>String(s||"").toLowerCase().normalize("NFKC").replace(/\s+/g," ").trim();
 const T=k=>window.SMN_I18N?.[k]?.[S.lang]||k;
+function closeTopModal(){
+ const modals=[...document.querySelectorAll(".modal")];
+ if(!modals.length)return false;
+ const top=modals[modals.length-1];
+ top.remove();
+ document.body.classList.toggle("modal-open",document.querySelector(".modal")!==null);
+ return true;
+}
+function prepareModal(modal){
+ if(!modal)return;
+ document.body.classList.add("modal-open");
+ modal.addEventListener("click",e=>{if(e.target===modal)closeTopModal()});
+ const close=modal.querySelector(".close");
+ if(close)close.onclick=e=>{e.preventDefault();e.stopPropagation();closeTopModal()};
+}
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&document.querySelector(".modal")){
+   e.preventDefault();closeTopModal();
+ }
+});
 function nav(v){return({home:T("home"),database:T("database"),interactions:T("interactions"),supplements:T("supplements"),stack:T("stack")})[v]}
 function applyTheme(){document.documentElement.dataset.theme=S.theme;document.body.dataset.theme=S.theme;const b=$("#themeBtn");if(b)b.textContent=S.theme==="night"?"☀️ Day":"🌙 Night"}
 function saveStack(){localStorage.setItem("smn_v5_stack",JSON.stringify(S.stack))}
@@ -64,6 +84,7 @@ function bind(){
  $("#langBtn").onclick=()=>{S.lang=S.lang==="bn"?"en":"bn";localStorage.setItem("smn_v5_lang",S.lang);render()};
  $("#modeBtn").onclick=()=>{S.mode=S.mode==="public"?"professional":"public";localStorage.setItem("smn_v5_mode",S.mode);render()};
  document.onclick=e=>{
+   const cm=e.target.closest("[data-close-modal]");if(cm){closeTopModal();return}
    const v=e.target.closest("[data-view]");if(v){if(v.dataset.dbtype)S.dbType=v.dataset.dbtype;setView(v.dataset.view);return}
    const m=e.target.closest("[data-med]");if(m){openMedicine(m.dataset.med);return}
    const sm=e.target.closest("[data-add-stack-med]");if(sm){addMedicineStack(sm.dataset.addStackMed);return}
@@ -143,7 +164,7 @@ function openLocalSupplement(id){
 }
 function openProfile(name){
  const pr=(SMN_INGREDIENT_PROFILES||[]).find(x=>x.name===name);if(!pr)return;
- document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="profileModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">Formulation Intelligence</span><h2>${esc(pr.name)}</h2></div><button class="close" onclick="document.getElementById('profileModal').remove()">×</button></div><div class="list">${profileHTML(pr)}</div><div class="notice" style="margin-top:12px">${S.lang==="bn"?"এটি formulation-level information; নির্দিষ্ট commercial product-এর dose/quality/label আলাদা হতে পারে।":"This is formulation-level information; dose, quality and label vary by commercial product."}</div></div></div>`);
+ document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="profileModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">Formulation Intelligence</span><h2>${esc(pr.name)}</h2></div><button class="close" type="button" aria-label="Close">×</button></div><div class="list">${profileHTML(pr)}</div><div class="notice" style="margin-top:12px">${S.lang==="bn"?"এটি formulation-level information; নির্দিষ্ট commercial product-এর dose/quality/label আলাদা হতে পারে।":"This is formulation-level information; dose, quality and label vary by commercial product."}</div></div></div>`);prepareModal($("#profileModal"))
 }
 
 function normalizeDSLDLabel(j){const ingredients=(j.ingredientRows||[]).map(r=>({name:r.name||r.ingredientGroup||"",form:(r.forms||[]).map(f=>f.name).join(", "),qty:(r.quantity||[]).map(q=>`${q.quantity||""} ${q.unit||""}`.trim()).join("; ")}));return{uid:"SUP_DSLD_"+j.id,kind:"supplement",source:"NIH DSLD",id:String(j.id),name:j.fullName||"Supplement",brand:j.brandName||"",ingredients,offMarket:!!j.offMarket,productType:j.productType?.langualCodeDescription||"",physicalState:j.physicalState?.langualCodeDescription||"",statements:j.statements||[]}}
@@ -153,12 +174,12 @@ async function addDSLDToInteraction(id){loading("Loading supplement label…");t
 function openSupplementModal(p){
  const profiles=[];for(const ing of p.ingredients){const pr=profileFor((ing.name+" "+ing.form).trim());if(pr&&!profiles.includes(pr))profiles.push(pr)}
  const statements=(p.statements||[]).map(s=>`<div class="row"><div><b>${esc(s.type||"Label statement")}</b><small>${esc(s.notes||"")}</small></div></div>`).join("");
- document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="suppModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">${esc(p.source)}</span><h2>${esc(p.name)}</h2><p>${esc(p.brand||"")} ${p.offMarket?"• Historical/off-market":""}</p></div><button class="close" onclick="document.getElementById('suppModal').remove()">×</button></div>
+ document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="suppModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">${esc(p.source)}</span><h2>${esc(p.name)}</h2><p>${esc(p.brand||"")} ${p.offMarket?"• Historical/off-market":""}</p></div><button class="close" type="button" aria-label="Close">×</button></div>
  <div class="facts"><div class="fact"><span>Product type</span>${esc(p.productType||"—")}</div><div class="fact"><span>Form</span>${esc(p.physicalState||"—")}</div><div class="fact"><span>Ingredients</span>${p.ingredients.length}</div></div>
  <div class="section"><h2>${S.lang==="bn"?"Label Ingredients":"Label Ingredients"}</h2><div class="list">${p.ingredients.map(i=>`<div class="row"><div><b>${esc(i.name)}</b><small>${esc(i.form)} ${esc(i.qty)}</small></div></div>`).join("")}</div></div>
  <div class="section"><h2>${S.lang==="bn"?"Formulation Intelligence":"Formulation Intelligence"}</h2><div class="list">${profiles.length?profiles.map(pr=>profileHTML(pr)).join(""):`<div class="row"><small>${T("noMatch")}</small></div>`}</div></div>
  <div class="section"><h2>${S.lang==="bn"?"Label Directions / Precautions":"Label Directions / Precautions"}</h2><div class="list">${statements||`<div class="row"><small>—</small></div>`}</div></div>
- ${p.sourceUrl?`<div class="actions"><a class="secondary" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a></div>`:""}<div class="actions"><button class="primary" onclick='window.SMN_ADD_SUPP_STACK(${JSON.stringify(JSON.stringify(p))})'>＋ My Stack</button><button class="primary" onclick='window.SMN_ADD_SUPP_INT(${JSON.stringify(JSON.stringify(p))})'>⚡ Interaction</button></div></div></div>`)
+ ${p.sourceUrl?`<div class="actions"><a class="secondary" href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">Source ↗</a></div>`:""}<div class="actions"><button class="primary" onclick='window.SMN_ADD_SUPP_STACK(${JSON.stringify(JSON.stringify(p))})'>＋ My Stack</button><button class="primary" onclick='window.SMN_ADD_SUPP_INT(${JSON.stringify(JSON.stringify(p))})'>⚡ Interaction</button></div></div></div>`);prepareModal($("#suppModal"))
 }
 window.SMN_ADD_SUPP_STACK=s=>{const p=JSON.parse(s);upsertStack(p);renderStack()};
 window.SMN_ADD_SUPP_INT=s=>{const p=JSON.parse(s);upsertInteraction(p);document.getElementById("suppModal")?.remove();setView("interactions")};
@@ -193,7 +214,7 @@ function drawGraph(findings){const c=$("#intCanvas");if(!c||!window.THREE)return
 function addMedicineStack(id){ensureMedicine().then(()=>{const r=S.medRows.find(x=>x.__id===id);if(r){upsertStack({uid:r.__id,kind:"medicine",source:"Bangladesh medicine corpus",name:r.brand_name||r.generic_name,generic:r.generic_name,strength:r.strength,manufacturer:r.manufacturer});renderStack()}})}
 function upsertStack(item){if(!S.stack.some(x=>x.uid===item.uid)){S.stack.push(item);saveStack()}}
 function renderStack(){const b=$("#stackPanel");if(!b)return;b.innerHTML=S.stack.length?`<div class="list">${S.stack.map(x=>`<div class="row"><div><b>${x.kind==="medicine"?"💊":"🧴"} ${esc(x.name)}</b><small>${esc(x.kind==="medicine"?x.generic:(x.ingredients||[]).map(i=>i.name).join(", "))}</small></div><button class="secondary" data-remove-stack="${esc(x.uid)}">Remove</button></div>`).join("")}</div><div class="actions"><button class="primary" id="reviewStack">${S.lang==="bn"?"সব ইন্টারঅ্যাকশন রিভিউ":"Review All Interactions"}</button></div>`:`<p>${S.lang==="bn"?"My Stack খালি।":"My Stack is empty."}</p>`;$("#reviewStack")?.addEventListener("click",()=>{S.interaction=[...S.stack];setView("interactions")})}
-async function openMedicine(id){await ensureMedicine();const r=S.medRows.find(x=>x.__id===id);if(!r)return;document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="medModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">${esc(r.medicine_type)}</span><h2>${esc(r.brand_name||r.generic_name)}</h2><p>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.manufacturer)}</p></div><button class="close" onclick="document.getElementById('medModal').remove()">×</button></div><div id="medBody"><div class="row">Loading clinical details…</div></div></div></div>`);const [label,ddi]=await Promise.all([SMN_DATA.openFDALabel(r.generic_name,r.brand_name),SMN_DATA.findDDI(r.generic_name).catch(()=>[])]);renderMedicineDetail(r,label,ddi)}
+async function openMedicine(id){await ensureMedicine();const r=S.medRows.find(x=>x.__id===id);if(!r)return;document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="medModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">${esc(r.medicine_type)}</span><h2>${esc(r.brand_name||r.generic_name)}</h2><p>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.manufacturer)}</p></div><button class="close" type="button" aria-label="Close">×</button></div><div id="medBody"><div class="row">Loading clinical details…</div></div></div></div>`);prepareModal($("#medModal"));const [label,ddi]=await Promise.all([SMN_DATA.openFDALabel(r.generic_name,r.brand_name),SMN_DATA.findDDI(r.generic_name).catch(()=>[])]);renderMedicineDetail(r,label,ddi)}
 function txt(l,k){const v=l?.[k];return Array.isArray(v)?v.join("\n\n"):String(v||"")}
 function section(l,keys){for(const k of keys){const v=txt(l,k);if(v.trim())return v.trim()}return""}
 function labelBuckets(l){const a=section(l,["drug_interactions","warnings_and_cautions","precautions"]),d=section(l,["dosage_and_administration","information_for_patients"]);const f=(t,rx)=>String(t||"").replace(/\s+/g," ").split(/(?<=[.!?;])\s+/).filter(s=>rx.test(s)).slice(0,12);return{food:f(a+" "+d,/(food|meal|grapefruit|dairy|milk|fasting|empty stomach)/i),nut:f(a+" "+d,/(calcium|iron|magnesium|zinc|potassium|vitamin|mineral)/i),supp:f(a+" "+d,/(supplement|antacid|herbal|ginkgo|garlic|st\.? john)/i),time:f(d,/(before|after|hours|minutes|meal|bedtime|morning|evening|empty stomach)/i)}}
@@ -244,7 +265,7 @@ function renderMedicineDetail(r,l,ddi){
  <div id="tab-ns" class="tabpane" hidden><div class="list">${ns.length?ns.map(x=>`<div class="row"><div><b>${esc(x[0])}</b><small>${esc(x[1])}</small></div></div>`).join(""):`<div class="row"><small>${T("noMatch")}</small></div>`}</div></div>
  <div id="tab-monitor" class="tabpane" hidden><div class="list"><div class="row"><small>${esc(warn||T("noMatch"))}</small></div>${S.mode==="professional"&&renal?`<div class="row"><div><b>Renal / specific populations</b><small>${esc(renal.slice(0,2200))}</small></div></div>`:""}${S.mode==="professional"&&hepatic?`<div class="row"><div><b>Hepatic</b><small>${esc(hepatic.slice(0,1800))}</small></div></div>`:""}</div></div>
  <div id="tab-sources" class="tabpane" hidden><div class="list"><div class="row"><small>Bangladesh medicine corpus • FDA DailyMed-derived DDI dataset • openFDA labels • curated interaction rules.</small></div></div></div>
- <div class="actions"><button class="primary" data-add-stack-med="${r.__id}">＋ My Stack</button><button class="primary" data-add-int-med="${r.__id}">⚡ Interaction</button></div>`;
+ <div class="actions"><button class="primary" data-add-stack-med="${r.__id}">＋ My Stack</button><button class="primary" data-add-int-med="${r.__id}">⚡ Interaction</button><button class="secondary" type="button" onclick="closeTopModal()">${S.lang==="bn"?"বন্ধ করুন":"Close"}</button></div>`;
  $$("#medBody [data-tab]").forEach(bu=>bu.onclick=()=>{$$("#medBody [data-tab]").forEach(x=>x.classList.remove("active"));bu.classList.add("active");$$(".tabpane",$("#medBody")).forEach(x=>x.hidden=true);$("#tab-"+bu.dataset.tab).hidden=false})
 }
 function initHero(){const c=$("#heroCanvas");if(!c||!window.THREE)return;const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(60,c.clientWidth/(c.clientHeight||430),.1,100),r=new THREE.WebGLRenderer({canvas:c,alpha:true,antialias:true});r.setSize(c.clientWidth,c.clientHeight||430,false);r.setPixelRatio(Math.min(devicePixelRatio,1.5));cam.position.z=5;const g=new THREE.Group();sc.add(g);for(let i=0;i<70;i++){const geo=i%5===0?new THREE.CapsuleGeometry(.07,.25,4,8):new THREE.IcosahedronGeometry(.1+Math.random()*.04,1),m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:[0x6be6b8,0x19c98f,0x9cde62,0xd8bb6b][i%4]}));m.position.set((Math.random()-.5)*7,(Math.random()-.5)*4,(Math.random()-.5)*3);m.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3);g.add(m)}let t=0;(function loop(){if(!document.body.contains(c)){r.dispose();return}t+=.0035;g.rotation.y=t;g.rotation.x=Math.sin(t)*.1;r.render(sc,cam);requestAnimationFrame(loop)})()}
