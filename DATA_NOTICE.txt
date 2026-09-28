@@ -1,0 +1,30 @@
+SHUDDHO MEDNUTRI — DATA NOTICE
+
+Bangladesh medicine corpus:
+CSE-3200-System-Project/Medora
+data/medicine_reference/Final_Medicine_Dataset.csv
+
+The source repository documents:
+- 71,795 consolidated medicine rows
+- 54,423 Allopathic rows
+- 5,281 Ayurvedic rows
+- 8,484 Unani rows
+- 1,029 Herbal rows
+- 2,578 Homeopathic rows
+- 7,389 normalized drug/formulation rows
+- 67,001 brand rows in its platform loading process
+
+The source repository states the consolidated corpus is distributed under CC BY 4.0
+and contains notices for the incorporated source datasets.
+
+This application loads that corpus remotely and does not claim it is an official DGDA dataset.
+
+Interaction dataset:
+Drug-Drug Interaction Dataset Derived from FDA 2026 DailyMed Drug Labels
+Zenodo DOI: 10.5281/zenodo.19685458
+File: ddi_2026.csv
+
+IMPORTANT:
+Common-use/search metadata in the Bangladesh corpus must not be presented as individualized
+clinical indication or prescribing advice. Professional mode means doctor, nutritionist or
+pharmacist workflow—not developer/raw JSON mode.
