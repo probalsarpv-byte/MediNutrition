@@ -1,318 +1,92 @@
 
-const state = {
-  rows: [],
-  counts: {},
-  mode: localStorage.getItem("smn_mode") || "public",
-  page: 1,
-  pageSize: 30,
-  browseType: "Allopathic",
-  supplementCandidates: [],
-  myMedicines: JSON.parse(localStorage.getItem("smn_meds_full") || "[]"),
-  ddi: null
-};
-
-const $=(s,c=document)=>c.querySelector(s);
-const $$=(s,c=document)=>[...c.querySelectorAll(s)];
+const state={rows:[],counts:{},lang:localStorage.getItem("smn_lang")||"bn",mode:localStorage.getItem("smn_mode")||"public",page:1,pageSize:30,browseType:"Allopathic",suppCandidates:[],myMedicines:JSON.parse(localStorage.getItem("smn_meds_v3")||"[]"),curated:[]};
+const $=(s,c=document)=>c.querySelector(s),$$=(s,c=document)=>[...c.querySelectorAll(s)];
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
 const norm=s=>String(s||"").toLowerCase().normalize("NFKC").replace(/\s+/g," ").trim();
-
-function setLoading(msg){
-  let x=$("#loading");
-  if(!x){
-    document.body.insertAdjacentHTML("beforeend",`<div class="loading" id="loading"><div><div class="loader"></div><h2>Shuddho MedNutri</h2><p class="progress" id="loadingText"></p></div></div>`);
-    x=$("#loading");
-  }
-  $("#loadingText").textContent=msg;
-}
-function removeLoading(){ $("#loading")?.remove(); }
-
-function deriveCounts(rows){
-  const c={total:rows.length,Allopathic:0,Ayurvedic:0,Unani:0,Herbal:0,Homeopathic:0};
-  rows.forEach(r=>{const t=r.medicine_type||"Unknown"; c[t]=(c[t]||0)+1;});
-  c.brands=new Set(rows.map(r=>norm(r.brand_name)).filter(Boolean)).size;
-  c.generics=new Set(rows.map(r=>norm(r.generic_name)).filter(Boolean)).size;
-  return c;
-}
-function makeSuppCandidates(rows){
-  const rx=/(vitamin|multivit|mineral|calcium|magnesium|zinc|iron|ferrous|folic|folate|omega[- ]?3|fish oil|probiotic|lactobac|bifido|saccharomyces|biotin|coenzyme|coq|glucosamine|chondroitin|collagen|lysine|carnitine|inositol|melatonin|evening primrose|psyllium|electrolyte)/i;
-  const seen=new Set(),out=[];
-  for(const r of rows){
-    if((r.medicine_type||"").toLowerCase()!=="allopathic")continue;
-    const hay=[r.generic_name,r.brand_name,r.common_uses].join(" ");
-    if(!rx.test(hay) && !/\bsupplements?\b/i.test(r.common_uses||""))continue;
-    const k=[r.brand_name,r.generic_name,r.strength,r.dosage_form].map(norm).join("|");
-    if(seen.has(k))continue;seen.add(k);out.push(r);
-    if(out.length>=1000)break;
-  }
-  return out;
-}
-function searchRows(q,limit=14){
-  q=norm(q); if(!q)return[];
-  const out=[];
-  for(const r of state.rows){
-    const brand=norm(r.brand_name), gen=norm(r.generic_name), hay=r.__search||"";
-    let score=0;
-    if(brand===q||gen===q)score=120;
-    else if(brand.startsWith(q))score=110;
-    else if(gen.startsWith(q))score=105;
-    else if(hay.includes(" "+q))score=80;
-    else if(hay.includes(q))score=60;
-    if(score){out.push({r,score}); if(out.length>180)break;}
-  }
-  return out.sort((a,b)=>b.score-a.score).slice(0,limit).map(x=>x.r);
-}
-
+const T=k=>window.SMN_I18N?.[k]?.[state.lang]||k;
+function setLoading(msg){let x=$("#loading");if(!x){document.body.insertAdjacentHTML("beforeend",`<div class="loading" id="loading"><div><div class="loader"></div><h2>Shuddho MedNutri</h2><p class="progress" id="loadingText"></p></div></div>`)}$("#loadingText").textContent=msg}
+function removeLoading(){$("#loading")?.remove()}
+function calcCounts(rows){const c={total:rows.length};rows.forEach(r=>c[r.medicine_type]=(c[r.medicine_type]||0)+1);c.brands=new Set(rows.map(r=>norm(r.brand_name)).filter(Boolean)).size;c.generics=new Set(rows.map(r=>norm(r.generic_name)).filter(Boolean)).size;return c}
+function makeSupp(rows){const rx=/(vitamin|multivit|mineral|calcium|magnesium|zinc|iron|ferrous|folic|folate|omega[- ]?3|fish oil|probiotic|lactobac|bifido|saccharomyces|biotin|coenzyme|coq|glucosamine|chondroitin|collagen|lysine|carnitine|inositol|melatonin|evening primrose|psyllium|electrolyte)/i,seen=new Set(),out=[];for(const r of rows){if(norm(r.medicine_type)!=="allopathic")continue;const h=[r.generic_name,r.brand_name,r.common_uses].join(" ");if(!rx.test(h)&&!/\bsupplements?\b/i.test(r.common_uses||""))continue;const k=[r.brand_name,r.generic_name,r.strength,r.dosage_form].map(norm).join("|");if(seen.has(k))continue;seen.add(k);out.push(r);if(out.length>=1000)break}return out}
+function searchRows(q,limit=18){q=norm(q);if(!q)return[];const out=[];for(const r of state.rows){const b=norm(r.brand_name),g=norm(r.generic_name),h=r.__search||"";let s=0;if(b===q||g===q)s=130;else if(b.startsWith(q))s=115;else if(g.startsWith(q))s=110;else if(h.includes(" "+q))s=82;else if(h.includes(q))s=60;if(s){out.push({r,s});if(out.length>260)break}}return out.sort((a,b)=>b.s-a.s).slice(0,limit).map(x=>x.r)}
+function findCurated(){const out=[],seen=new Set();for(const g of window.SMN_CURATED||[]){const n=norm(g);let r=state.rows.find(x=>norm(x.generic_name)===n&&norm(x.medicine_type)==="allopathic");if(!r)r=state.rows.find(x=>norm(x.generic_name).includes(n)&&norm(x.medicine_type)==="allopathic");if(r&&!seen.has(norm(r.generic_name))){seen.add(norm(r.generic_name));out.push(r)}if(out.length>=50)break}return out}
+function localRules(g){const n=norm(g);return (window.SMN_RULES||[]).filter(r=>(r.generic||[]).some(x=>n.includes(norm(x))||norm(x).includes(n)))}
+function badgeForRule(r){return `<span class="badge ${r.severity==="major"?"red":"gold"}">${esc(r.severity)}</span>`}
+function iconFor(r){return r.medicine_type==="Allopathic"?"💊":r.medicine_type==="Herbal"?"🌿":r.medicine_type==="Ayurvedic"?"🪷":r.medicine_type==="Unani"?"🌙":"⚪"}
 function render(){
-  const c=state.counts;
-  $("#app").innerHTML=`
-  <div class="shell">
-    <header class="topbar">
-      <div class="brand">SHUDDHO <span>MEDNUTRI</span></div>
-      <nav class="nav">
-        <button data-go="home">Home</button><button data-go="browse">Database</button><button data-go="supp">Supplements</button><button data-go="interaction">Interactions</button><button data-go="mylist">My List</button>
-      </nav>
-      <button class="ghost" id="modeBtn">${state.mode==="public"?"Public":"Professional"} Mode</button>
-    </header>
-
-    <section class="hero" id="home">
-      <canvas id="heroCanvas"></canvas>
-      <div class="hero-content">
-        <span class="badge">FULL BANGLADESH MEDICINE REFERENCE CORPUS</span>
-        <h1>Shuddho <span>MedNutri</span></h1>
-        <p>Medicine, supplement, traditional medicine, interaction এবং nutrition intelligence — এক জায়গায়।</p>
-        <div class="search-wrap">
-          <input id="search" class="search" placeholder="একটি অক্ষর লিখুন — Brand, Generic, Manufacturer, Supplement..." autocomplete="off">
-          <div id="suggest" class="suggest" hidden></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-head"><div><h2>Database at a glance</h2><p>Live counts from the loaded corpus</p></div></div>
-      <div class="grid">
-        ${statCard("💊",c.total,"Total medicine rows","browse","Allopathic")}
-        ${statCard("🏷️",c.brands,"Unique brand names","browse","Allopathic")}
-        ${statCard("🧪",c.generics,"Unique generic names","browse","Allopathic")}
-        ${statCard("🧴",state.supplementCandidates.length,"Nutrition / supplement candidates","supp","")}
-        ${statCard("🪷",c.Ayurvedic||0,"Ayurvedic","browse","Ayurvedic")}
-        ${statCard("🌙",c.Unani||0,"Unani","browse","Unani")}
-        ${statCard("🌿",c.Herbal||0,"Herbal","browse","Herbal")}
-        ${statCard("⚪",c.Homeopathic||0,"Homeopathic","browse","Homeopathic")}
-      </div>
-    </section>
-
-    <section class="section" id="browse">
-      <div class="section-head"><div><h2>Medicine Database</h2><p>Food Database-এর মতো group-wise browsing</p></div></div>
-      <div class="panel">
-        <div class="filters">
-          <select id="typeFilter">
-            ${["Allopathic","Ayurvedic","Unani","Herbal","Homeopathic"].map(x=>`<option ${state.browseType===x?"selected":""}>${x}</option>`).join("")}
-          </select>
-          <input id="browseSearch" placeholder="এই group-এর মধ্যে search">
-        </div>
-        <div id="browseList" class="list" style="margin-top:12px"></div>
-        <div id="pager" class="pagination"></div>
-      </div>
-    </section>
-
-    <section class="section" id="supp">
-      <div class="section-head"><div><h2>Supplement / Nutrition Formulations</h2><p>1000 nutrition-related formulation candidates from the Bangladesh corpus</p></div></div>
-      <div class="notice">এই section-এর কিছু item medicine corpus থেকে nutrition-formulation keyword দিয়ে শনাক্ত করা। Regulatory dietary-supplement status আলাদাভাবে verify করতে হবে।</div>
-      <div id="suppList" class="list" style="margin-top:12px"></div>
-    </section>
-
-    <section class="section" id="interaction">
-      <div class="section-head"><div><h2>Drug–Drug Interaction Checker</h2><p>FDA DailyMed-derived 2026 DDI dataset lazy-load হবে</p></div></div>
-      <div class="panel cols">
-        <div>
-          <input id="ddiA" placeholder="Generic 1, যেমন metformin">
-          <br><br>
-          <input id="ddiB" placeholder="Generic 2">
-          <div style="margin-top:12px"><button class="primary" id="ddiBtn">Check Interaction</button></div>
-        </div>
-        <div id="ddiResult" class="list"><div class="row"><small>দুটি generic name লিখুন। Interaction dataset প্রয়োজন হলে তখনই load হবে।</small></div></div>
-      </div>
-    </section>
-
-    <section class="section" id="mylist">
-      <div class="section-head"><div><h2>My Medicine List</h2><p>Public user বা clinician — browser-এ locally save হবে</p></div></div>
-      <div class="panel" id="myListPanel">${myListHTML()}</div>
-    </section>
-
-    <section class="section">
-      <div class="notice">
-        <b>Data provenance:</b> Bangladesh medicine corpus is loaded from the Medora consolidated reference corpus. It must not be described as an official DGDA database.
-        Some source fields are directory/search metadata and should not be treated as individualized prescribing guidance.
-      </div>
-    </section>
-
-    <div class="footer">© Shuddho Academy • Medicine reference + supplement/nutrition intelligence • Educational decision support only.</div>
-  </div>
-  <div class="bottom">
-    <button data-go="home"><b>⌂</b>Home</button><button id="bottomSearch"><b>⌕</b>Search</button><button data-go="browse"><b>💊</b>Database</button><button data-go="mylist"><b>🧾</b>My List</button>
-  </div>`;
-  bind();
-  renderBrowse();
-  renderSupp();
+ const c=state.counts;
+ $("#app").innerHTML=`<div class="shell">
+ <header class="topbar"><div class="brand">SHUDDHO <span>MEDNUTRI</span></div><nav class="nav"><button data-go="home">${T("home")}</button><button data-go="common">${T("common_medicines")}</button><button data-go="database">${T("database")}</button><button data-go="interaction">${T("interactions")}</button><button data-go="mylist">${T("my_list")}</button></nav><div class="actions"><button class="ghost" id="langBtn">${state.lang==="bn"?"EN":"বাংলা"}</button><button class="ghost" id="modeBtn">${state.mode==="public"?T("public_mode"):T("professional_mode")}</button></div></header>
+ <section class="hero" id="home"><canvas id="heroCanvas"></canvas><div class="hero-content"><div class="eyebrow"><span class="badge">${T("full_db")}</span><span class="badge gold">AUTO INTERACTION</span></div><h1>Shuddho <span>MedNutri</span></h1><p>${T("tagline")}</p><div class="search-wrap"><input id="search" class="search" placeholder="${esc(T("search_placeholder"))}" autocomplete="off"><div id="suggest" class="suggest" hidden></div></div></div></section>
+ <section class="section" id="common"><div class="section-head"><div><h2>${T("common_medicines")}</h2><p>${T("common_sub")}</p></div></div><div class="notice">${T("featured_note")}</div><div class="grid" style="margin-top:14px">${state.curated.map(homeCard).join("")}</div></section>
+ <section class="section"><div class="section-head"><div><h2>${T("database")}</h2><p>${state.lang==="bn"?"পূর্ণ ডাটাবেজ ব্যাকগ্রাউন্ডে থাকবে; হোমে সব ওষুধ দেখানো হবে না।":"The full database remains in the background; all medicines are not rendered on the home page."}</p></div></div><div class="grid">
+ ${stat("💊",c.total,state.lang==="bn"?"মোট মেডিসিন রো":"Total medicine rows","database","Allopathic")}${stat("🏷️",c.brands,state.lang==="bn"?"ইউনিক ব্র্যান্ড":"Unique brands","database","Allopathic")}${stat("🧪",c.generics,state.lang==="bn"?"ইউনিক জেনেরিক":"Unique generics","database","Allopathic")}${stat("🧴",state.suppCandidates.length,T("supp_candidates"),"supp","")}${stat("🪷",c.Ayurvedic||0,"Ayurvedic","database","Ayurvedic")}${stat("🌙",c.Unani||0,"Unani","database","Unani")}${stat("🌿",c.Herbal||0,"Herbal","database","Herbal")}${stat("⚪",c.Homeopathic||0,"Homeopathic","database","Homeopathic")}</div></section>
+ <section class="section" id="database"><div class="section-head"><div><h2>${T("database")}</h2><p>${state.lang==="bn"?"গ্রুপ বেছে নিন, তারপর সার্চ করুন।":"Choose a group, then search within it."}</p></div></div><div class="panel"><div class="filters"><select id="typeFilter">${["Allopathic","Ayurvedic","Unani","Herbal","Homeopathic"].map(x=>`<option ${state.browseType===x?"selected":""}>${x}</option>`).join("")}</select><input id="browseSearch" placeholder="${state.lang==="bn"?"এই গ্রুপে সার্চ":"Search this group"}"></div><div id="browseList" class="list" style="margin-top:12px"></div><div id="pager" class="pagination"></div></div></section>
+ <section class="section" id="supp"><div class="section-head"><div><h2>${T("supp_candidates")}</h2><p>${state.lang==="bn"?"বাংলাদেশ corpus থেকে nutrition-related formulation candidate.":"Nutrition-related formulation candidates from the Bangladesh corpus."}</p></div></div><div class="notice">${state.lang==="bn"?"Regulatory supplement status সব item-এর জন্য আলাদাভাবে verify করা প্রয়োজন।":"Regulatory supplement status requires separate verification for each item."}</div><div id="suppList" class="list" style="margin-top:12px"></div></section>
+ <section class="section" id="interaction"><div class="section-head"><div><h2>${T("auto_checker")}</h2><p>${state.lang==="bn"?"ওষুধ খুললেই interaction auto-load হবে; এখানে চাইলে দুইটি generic সরাসরি check করা যায়।":"Interactions auto-load when a medicine is opened; you can also check a pair here."}</p></div></div><div class="panel cols"><div><input id="ddiA" placeholder="Generic 1"><br><br><input id="ddiB" placeholder="Generic 2"><div class="actions"><button class="primary" id="ddiBtn">${T("pair_check")}</button></div></div><div id="ddiResult" class="list"><div class="row"><small>${state.lang==="bn"?"দুটি generic নাম দিন।":"Enter two generic names."}</small></div></div></div></section>
+ <section class="section" id="mylist"><div class="section-head"><div><h2>${T("my_list")}</h2><p>${state.lang==="bn"?"সেভ করা ওষুধের pairwise interaction review.":"Pairwise interaction review for saved medicines."}</p></div></div><div class="panel" id="myListPanel">${myListHTML()}</div></section>
+ <div class="footer">© Shuddho Academy • ${state.lang==="bn"?"শিক্ষামূলক ও ক্লিনিক্যাল decision-support; নিজে থেকে ওষুধ শুরু/বন্ধ/ডোজ পরিবর্তনের জন্য নয়।":"Educational and clinical decision support; not for self-directed starting, stopping, or dose changes."}</div></div>
+ <div class="bottom"><button data-go="home"><b>⌂</b>${T("home")}</button><button id="bottomSearch"><b>⌕</b>${state.lang==="bn"?"সার্চ":"Search"}</button><button data-go="interaction"><b>⚡</b>${T("interactions")}</button><button data-go="mylist"><b>🧾</b>${T("my_list")}</button></div>`;
+ bind();renderBrowse();renderSupp();initThree();
 }
-function statCard(icon,n,label,target,type){
-  return `<article class="card"><div class="icon">${icon}</div><div class="kpi">${Number(n||0).toLocaleString()}<small>${esc(label)}</small></div><button class="primary" data-stat-target="${target}" data-stat-type="${esc(type)}">Explore</button></article>`;
-}
+function stat(i,n,l,target,type){return `<article class="card"><div class="icon">${i}</div><div class="kpi">${Number(n||0).toLocaleString()}<small>${esc(l)}</small></div><button class="primary" data-stat-target="${target}" data-stat-type="${esc(type)}">${state.lang==="bn"?"দেখুন":"Explore"}</button></article>`}
+function homeCard(r){const rules=localRules(r.generic_name), badges=[...new Set(rules.map(x=>x.type))].slice(0,3);return `<article class="card stack-card"><div class="icon">💊</div><span class="badge">${esc(r.generic_name)}</span><h3>${esc(r.brand_name||r.generic_name)}</h3><p>${esc(r.strength)} • ${esc(r.dosage_form)}</p><div class="eyebrow">${badges.map(x=>`<span class="badge gold">${esc(x)}</span>`).join("")}</div><div class="actions"><button class="primary" data-row-id="${r.__id}">${T("view_details")}</button><button class="secondary" data-add-row="${r.__id}">${T("save")}</button></div></article>`}
 function bind(){
-  $("#modeBtn").onclick=()=>{state.mode=state.mode==="public"?"professional":"public";localStorage.setItem("smn_mode",state.mode);render();initThree();};
-  $$("#search").forEach(()=>{});
-  $("#search").oninput=e=>showSuggest(e.target.value);
-  $("#search").onkeydown=e=>{if(e.key==="Escape")$("#suggest").hidden=true};
-  $("#typeFilter").onchange=e=>{state.browseType=e.target.value;state.page=1;renderBrowse()};
-  $("#browseSearch").oninput=()=>{state.page=1;renderBrowse()};
-  $("#ddiBtn").onclick=checkDDI;
-  $("#bottomSearch").onclick=()=>{$("#home").scrollIntoView({behavior:"smooth"});setTimeout(()=>$("#search").focus(),350)};
-  document.onclick=e=>{
-    const go=e.target.closest("[data-go]"); if(go)$("#"+go.dataset.go)?.scrollIntoView({behavior:"smooth"});
-    const st=e.target.closest("[data-stat-target]"); if(st){if(st.dataset.statType){state.browseType=st.dataset.statType;state.page=1;$("#typeFilter").value=state.browseType;renderBrowse()} $("#"+st.dataset.statTarget)?.scrollIntoView({behavior:"smooth"});}
-    const sr=e.target.closest("[data-row-id]"); if(sr)openMedicine(sr.dataset.rowId);
-    const pg=e.target.closest("[data-page]"); if(pg){state.page=Number(pg.dataset.page);renderBrowse();$("#browse").scrollIntoView({behavior:"smooth"})}
-    const add=e.target.closest("[data-add-row]"); if(add){addToMyList(add.dataset.addRow);}
-    const rm=e.target.closest("[data-remove-row]"); if(rm){removeFromMyList(rm.dataset.removeRow);}
-  };
+ $("#langBtn").onclick=()=>{state.lang=state.lang==="bn"?"en":"bn";localStorage.setItem("smn_lang",state.lang);render()};
+ $("#modeBtn").onclick=()=>{state.mode=state.mode==="public"?"professional":"public";localStorage.setItem("smn_mode",state.mode);render()};
+ $("#search").oninput=e=>showSuggest(e.target.value);$("#search").onkeydown=e=>{if(e.key==="Escape")$("#suggest").hidden=true};
+ $("#typeFilter").onchange=e=>{state.browseType=e.target.value;state.page=1;renderBrowse()};$("#browseSearch").oninput=()=>{state.page=1;renderBrowse()};$("#ddiBtn").onclick=manualPair;$("#bottomSearch").onclick=()=>{$("#home").scrollIntoView({behavior:"smooth"});setTimeout(()=>$("#search").focus(),300)};
+ document.onclick=e=>{const go=e.target.closest("[data-go]");if(go)$("#"+go.dataset.go)?.scrollIntoView({behavior:"smooth"});const st=e.target.closest("[data-stat-target]");if(st){if(st.dataset.statType){state.browseType=st.dataset.statType;state.page=1;$("#typeFilter").value=state.browseType;renderBrowse()}$("#"+st.dataset.statTarget)?.scrollIntoView({behavior:"smooth"})}const row=e.target.closest("[data-row-id]");if(row)openMedicine(row.dataset.rowId);const pg=e.target.closest("[data-page]");if(pg){state.page=Number(pg.dataset.page);renderBrowse()}const add=e.target.closest("[data-add-row]");if(add)addToMyList(add.dataset.addRow);const rm=e.target.closest("[data-remove-row]");if(rm)removeFromMyList(rm.dataset.removeRow);if(e.target.closest("#reviewMyList"))reviewMyList();const share=e.target.closest("[data-share-row]");if(share)downloadShareCard(share.dataset.shareRow)}
 }
-function showSuggest(q){
-  const box=$("#suggest"),list=searchRows(q);
-  if(!q||!list.length){box.hidden=true;box.innerHTML="";return}
-  box.hidden=false;
-  box.innerHTML=list.map(r=>`<div class="srow" data-row-id="${r.__id}">
-    <div class="icon" style="font-size:22px">${r.medicine_type==="Allopathic"?"💊":r.medicine_type==="Herbal"?"🌿":r.medicine_type==="Ayurvedic"?"🪷":r.medicine_type==="Unani"?"🌙":"⚪"}</div>
-    <div><b>${esc(r.brand_name||r.generic_name)}</b><small>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.manufacturer)}</small></div>
-    <span class="meta">${esc(r.medicine_type)}</span>
-  </div>`).join("");
+function showSuggest(q){const box=$("#suggest"),list=searchRows(q);if(!q||!list.length){box.hidden=true;box.innerHTML="";return}box.hidden=false;box.innerHTML=list.map(r=>`<div class="srow" data-row-id="${r.__id}"><div class="icon" style="font-size:22px">${iconFor(r)}</div><div><b>${esc(r.brand_name||r.generic_name)}</b><small>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.manufacturer)}</small></div><span class="meta">${esc(r.medicine_type)}</span></div>`).join("")}
+function groupRows(){const q=norm($("#browseSearch")?.value||"");return state.rows.filter(r=>(r.medicine_type||"")===state.browseType&&(!q||(r.__search||"").includes(q)))}
+function renderBrowse(){const all=groupRows(),pages=Math.max(1,Math.ceil(all.length/state.pageSize));if(state.page>pages)state.page=pages;const start=(state.page-1)*state.pageSize,page=all.slice(start,start+state.pageSize);$("#browseList").innerHTML=page.map(rowHTML).join("")||`<div class="row">No results</div>`;const nums=[1,state.page-1,state.page,state.page+1,pages].filter((x,i,a)=>x>=1&&x<=pages&&a.indexOf(x)===i);$("#pager").innerHTML=nums.map(n=>`<button data-page="${n}">${n===state.page?"• ":""}${n}</button>`).join("")}
+function rowHTML(r){return `<div class="row"><div><b>${esc(r.brand_name||"Unnamed")}</b><small>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.dosage_form)}<br>${esc(r.manufacturer)}</small></div><div class="row-actions"><button class="ghost" data-row-id="${r.__id}">${T("view_details")}</button><button class="ghost" data-add-row="${r.__id}">＋</button></div></div>`}
+function renderSupp(){$("#suppList").innerHTML=state.suppCandidates.slice(0,80).map(rowHTML).join("")}
+function labelText(l,k){const v=l?.[k];return Array.isArray(v)?v.join("\n\n"):String(v||"")}
+function labelBnHint(key,en){if(state.lang==="en")return en;const hints={indications_and_usage:"FDA label-এর indication/ব্যবহার অংশ:",dosage_and_administration:"FDA label-এর খাওয়ার নিয়ম/ডোজ অংশ:",mechanism_of_action:"FDA label-এর mechanism of action অংশ:",adverse_reactions:"FDA label-এর adverse reaction অংশ:",warnings_and_cautions:"FDA label-এর warning/caution অংশ:"};return (hints[key]||"FDA label:")+" "+en}
+function nutritionSupport(text){const t=norm(text),out=[];if(/nausea|vomit/.test(t))out.push([state.lang==="bn"?"বমি বমি ভাব":"Nausea",state.lang==="bn"?"ছোট meal, hydration, strong odor এড়ানো; medicine with food only if label allows.":"Small meals, hydration, and avoiding strong odors may help; take with food only if the label allows."]);if(/diarr/.test(t))out.push([state.lang==="bn"?"ডায়রিয়া":"Diarrhea",state.lang==="bn"?"তরল ও electrolyte support; dehydration/blood/high fever হলে medical review.":"Fluid/electrolyte support; seek review for dehydration, blood, or high fever."]);if(/constipat/.test(t))out.push([state.lang==="bn"?"কোষ্ঠকাঠিন্য":"Constipation",state.lang==="bn"?"ধীরে fibre বাড়ানো ও উপযুক্ত হলে fluid; obstruction/red flag হলে self-care নয়।":"Gradually increase fibre and fluids if appropriate; red flags require review."]);if(/dry mouth|xerostomia/.test(t))out.push([state.lang==="bn"?"মুখ শুকানো":"Dry mouth",state.lang==="bn"?"ছোট চুমুকে পানি, moist foods, sugar-free gum if appropriate, oral care.":"Small sips, moist foods, sugar-free gum if appropriate, and oral care."]);if(/appetite|anorexia/.test(t))out.push([state.lang==="bn"?"ক্ষুধামন্দা":"Appetite loss",state.lang==="bn"?"ছোট nutrient-dense meal, protein-rich snack, ওজন monitor.":"Small nutrient-dense meals, protein-rich snacks, and weight monitoring."]);return out}
+async function openMedicine(id){
+ $("#suggest").hidden=true;const r=state.rows.find(x=>x.__id===id);if(!r)return;
+ document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="medModal"><div class="modal-card"><div class="modal-head"><div><span class="badge">${esc(r.medicine_type)}</span><h2>${esc(r.brand_name||r.generic_name)}</h2><p>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.manufacturer)}</p></div><button class="close" onclick="document.getElementById('medModal').remove()">×</button></div><div id="medBody"><div class="row"><small>${state.lang==="bn"?"ডিটেইলস ও interaction auto-load হচ্ছে…":"Loading details and interactions automatically…"}</small></div></div></div></div>`);
+ const [label,ddi]=await Promise.all([SMN_DATA.loadOpenFDALabel(r.generic_name),SMN_DATA.findDDIForGeneric(r.generic_name,null,60).catch(()=>[])]);
+ renderMedicineBody(r,label,ddi);
 }
-function groupRows(){
-  const q=norm($("#browseSearch")?.value||"");
-  return state.rows.filter(r=>(r.medicine_type||"")===state.browseType && (!q || (r.__search||"").includes(q)));
+function renderMedicineBody(r,label,ddi){
+ const rules=localRules(r.generic_name),food=rules.filter(x=>x.type==="food"),nut=rules.filter(x=>x.type==="nutrient"),supp=rules.filter(x=>x.type==="supplement");
+ const indications=labelText(label,"indications_and_usage"),mechanism=labelText(label,"mechanism_of_action")||labelText(label,"clinical_pharmacology"),dosage=labelText(label,"dosage_and_administration"),adverse=labelText(label,"adverse_reactions"),warnings=labelText(label,"warnings_and_cautions"),labelInt=labelText(label,"drug_interactions");
+ const side=nutritionSupport(adverse+" "+warnings);
+ const overview=`<div class="data-grid"><div class="fact"><span>Generic</span>${esc(r.generic_name)}</div><div class="fact"><span>Brand</span>${esc(r.brand_name)}</div><div class="fact"><span>Strength / Form</span>${esc(r.strength)} • ${esc(r.dosage_form)}</div><div class="fact"><span>Manufacturer</span>${esc(r.manufacturer)}</div><div class="fact"><span>System</span>${esc(r.medicine_type)}</div><div class="fact"><span>${state.lang==="bn"?"ব্যবহার metadata":"Use metadata"}</span>${esc(r.common_uses||"—")}</div></div>`;
+ const ruleHTML=arr=>arr.length?arr.map(x=>`<div class="row"><div><b>${esc(state.lang==="bn"?x.with_bn:x.with_en)}</b><small>${esc(state.mode==="professional"?x.pro:(state.lang==="bn"?x.bn:x.en))}<br><b>${state.lang==="bn"?"করণীয়":"Action"}:</b> ${esc(state.lang==="bn"?x.action_bn:x.action_en)}<br><i>${esc(x.source)}</i></small></div>${badgeForRule(x)}</div>`).join(""):`<div class="row"><small>${T("no_match")}</small></div>`;
+ const ddiHTML=ddi.length?ddi.slice(0,30).map(x=>`<div class="row"><div><b>${esc(x.other||"Interaction match")}</b><small>${esc(x.description||"FDA DailyMed-derived interaction pair")}</small></div><span class="badge gold">${esc(x.severity||"review")}</span></div>`).join(""):`<div class="row"><small>${T("no_match")}</small></div>`;
+ const usesHTML=indications?`<div class="row"><div><b>${T("uses")}</b><small>${esc(labelBnHint("indications_and_usage",indications.slice(0,2800)))}</small></div></div>`:`<div class="row"><small>${esc(r.common_uses||T("no_match"))}</small></div>`;
+ const mechHTML=mechanism?`<div class="row"><div><b>${T("mechanism")}</b><small>${esc(labelBnHint("mechanism_of_action",mechanism.slice(0,2600)))}</small></div></div>`:`<div class="row"><small>${T("no_match")}</small></div>`;
+ const timingRules=[...rules.filter(x=>x.severity==="timing")];
+ const sideHTML=side.length?side.map(x=>`<div class="row"><div><b>${esc(x[0])}</b><small>${esc(x[1])}</small></div></div>`).join(""):`<div class="row"><small>${T("no_match")}</small></div>`;
+ $("#medBody").innerHTML=`${overview}
+ <div class="tabs">${["overview","uses","mechanism","drug_drug","food","nutrient","supp_herbal","timing","side_effects","nutrition_support","monitoring","sources"].map((k,i)=>`<button class="${i===0?"active":""}" data-tab="${k}">${T(k)}</button>`).join("")}</div>
+ <div id="tab-overview" class="tabpane"><div class="notice">${state.mode==="professional"?T("professional_explain"):(state.lang==="bn"?"সহজ সারাংশ; clinical সিদ্ধান্তের বিকল্প নয়।":"Plain-language summary; not a substitute for clinical decisions.")}</div></div>
+ <div id="tab-uses" class="tabpane" hidden><div class="list">${usesHTML}</div></div>
+ <div id="tab-mechanism" class="tabpane" hidden><div class="list">${mechHTML}</div></div>
+ <div id="tab-drug_drug" class="tabpane" hidden><div class="list">${ddiHTML}</div></div>
+ <div id="tab-food" class="tabpane" hidden><div class="list">${ruleHTML(food)}</div></div>
+ <div id="tab-nutrient" class="tabpane" hidden><div class="list">${ruleHTML(nut)}</div></div>
+ <div id="tab-supp_herbal" class="tabpane" hidden><div class="list">${ruleHTML(supp)}</div></div>
+ <div id="tab-timing" class="tabpane" hidden><div class="list">${ruleHTML(timingRules)}${dosage?`<div class="row"><div><b>${state.lang==="bn"?"FDA label-এর খাওয়ার নিয়ম":"FDA label dosage/administration"}</b><small>${esc(labelBnHint("dosage_and_administration",dosage.slice(0,2200)))}</small></div></div>`:""}</div></div>
+ <div id="tab-side_effects" class="tabpane" hidden><div class="list">${adverse?`<div class="row"><div><b>${T("side_effects")}</b><small>${esc(labelBnHint("adverse_reactions",adverse.slice(0,2400)))}</small></div></div>`:`<div class="row"><small>${T("no_match")}</small></div>`}</div></div>
+ <div id="tab-nutrition_support" class="tabpane" hidden><div class="list">${sideHTML}</div></div>
+ <div id="tab-monitoring" class="tabpane" hidden><div class="list">${warnings?`<div class="row"><div><b>${T("monitoring")}</b><small>${esc(labelBnHint("warnings_and_cautions",warnings.slice(0,2600)))}</small></div></div>`:`<div class="row"><small>${T("no_match")}</small></div>`}${state.mode==="professional"&&labelInt?`<div class="row"><div><b>FDA label interaction section</b><small>${esc(labelInt.slice(0,2400))}</small></div></div>`:""}</div></div>
+ <div id="tab-sources" class="tabpane" hidden><div class="list"><div class="row"><div><b>Bangladesh medicine directory</b><small>Medora consolidated Bangladesh medicine corpus.</small></div></div><div class="row"><div><b>Drug–Drug</b><small>FDA DailyMed-derived 2026 DDI dataset (Zenodo).</small></div></div><div class="row"><div><b>Drug label</b><small>openFDA label API when a generic match is available.</small></div></div><div class="row"><div><b>Food/Nutrient/Supplement</b><small>Curated evidence-rule layer; not complete for every medicine.</small></div></div></div></div>
+ <div class="actions"><button class="primary" data-add-row="${r.__id}">＋ ${T("add_my_list")}</button><button class="secondary" data-share-row="${r.__id}">${T("download_card")}</button></div>`;
+ $$("#medBody .tabs button").forEach(b=>b.onclick=()=>{$$("#medBody .tabs button").forEach(x=>x.classList.remove("active"));b.classList.add("active");$$(".tabpane",$("#medBody")).forEach(x=>x.hidden=true);$("#tab-"+b.dataset.tab).hidden=false});
 }
-function renderBrowse(){
-  const all=groupRows(),pages=Math.max(1,Math.ceil(all.length/state.pageSize));
-  if(state.page>pages)state.page=pages;
-  const start=(state.page-1)*state.pageSize, page=all.slice(start,start+state.pageSize);
-  $("#browseList").innerHTML=page.map(r=>rowHTML(r)).join("")||`<div class="row"><small>No results.</small></div>`;
-  const nums=[1,state.page-1,state.page,state.page+1,pages].filter((x,i,a)=>x>=1&&x<=pages&&a.indexOf(x)===i);
-  $("#pager").innerHTML=nums.map(n=>`<button data-page="${n}">${n===state.page?"• ":""}${n}</button>`).join("");
-}
-function rowHTML(r){
-  return `<div class="row">
-    <div><b>${esc(r.brand_name||"Unnamed brand")}</b><small>${esc(r.generic_name)} • ${esc(r.strength)} • ${esc(r.dosage_form)}<br>${esc(r.manufacturer)}</small></div>
-    <div class="row-actions"><button class="ghost" data-row-id="${r.__id}">Open</button><button class="ghost" data-add-row="${r.__id}">＋</button></div>
-  </div>`;
-}
-function renderSupp(){
-  $("#suppList").innerHTML=state.supplementCandidates.slice(0,60).map(rowHTML).join("");
-}
-function openMedicine(id){
-  $("#suggest").hidden=true;
-  const r=state.rows.find(x=>x.__id===id);if(!r)return;
-  const commonUse=(r.common_uses||"").trim();
-  const commonUseHTML=commonUse?`<div class="fact"><span>Common use metadata</span>${esc(commonUse)}</div>`:"";
-  const publicView=`
-    <div class="data-grid">
-      <div class="fact"><span>Generic</span>${esc(r.generic_name)}</div>
-      <div class="fact"><span>Brand</span>${esc(r.brand_name)}</div>
-      <div class="fact"><span>Strength</span>${esc(r.strength)}</div>
-      <div class="fact"><span>Dosage form</span>${esc(r.dosage_form)}</div>
-      <div class="fact"><span>Manufacturer</span>${esc(r.manufacturer)}</div>
-      <div class="fact"><span>Medicine system</span>${esc(r.medicine_type)}</div>
-      ${commonUseHTML}
-    </div>
-    <p class="notice">এই entry কোনো diagnosis বা prescription নির্দেশনা নয়। খাবারের আগে/পরে, dose change বা medicine stop/start করার জন্য product label/clinician-এর নির্দেশনা অনুসরণ করুন।</p>`;
-  const professionalView=`
-    <div class="data-grid">
-      <div class="fact"><span>Generic name</span>${esc(r.generic_name)}</div>
-      <div class="fact"><span>Brand name</span>${esc(r.brand_name)}</div>
-      <div class="fact"><span>Strength</span>${esc(r.strength)}</div>
-      <div class="fact"><span>Dosage form</span>${esc(r.dosage_form)}</div>
-      <div class="fact"><span>Manufacturer</span>${esc(r.manufacturer)}</div>
-      <div class="fact"><span>Usage type</span>${esc(r.usage_type)}</div>
-      <div class="fact"><span>Country</span>${esc(r.country_code)}</div>
-      <div class="fact"><span>Medicine type</span>${esc(r.medicine_type)}</div>
-      ${commonUseHTML}
-    </div>
-    <h3>Clinical workspace</h3>
-    <p>Professional mode doctor/nutritionist/pharmacist-এর জন্য। এই corpus mechanism, renal dosing, monitoring বা full interaction monograph নিজে সরবরাহ করে না; যেখানে source-supported data নেই সেখানে system তা বানিয়ে দেখায় না।</p>
-    <div class="row"><div><b>Interaction check</b><small>এই generic নাম Interaction Checker-এ ব্যবহার করুন: ${esc(r.generic_name)}</small></div></div>`;
-  document.body.insertAdjacentHTML("beforeend",`<div class="modal" id="medModal"><div class="modal-card">
-    <div class="modal-head"><div><span class="badge">${esc(r.medicine_type)}</span><h2>${esc(r.brand_name||r.generic_name)}</h2><p>${esc(r.generic_name)} • ${esc(r.strength)}</p></div><button class="close" onclick="document.getElementById('medModal').remove()">×</button></div>
-    ${state.mode==="professional"?professionalView:publicView}
-    <div style="margin-top:14px"><button class="primary" data-add-row="${r.__id}">＋ Add to My Medicine List</button></div>
-  </div></div>`);
-}
-function addToMyList(id){
-  if(!state.myMedicines.includes(id))state.myMedicines.push(id);
-  localStorage.setItem("smn_meds_full",JSON.stringify(state.myMedicines));
-  if($("#myListPanel"))$("#myListPanel").innerHTML=myListHTML();
-}
-function removeFromMyList(id){
-  state.myMedicines=state.myMedicines.filter(x=>x!==id);
-  localStorage.setItem("smn_meds_full",JSON.stringify(state.myMedicines));
-  $("#myListPanel").innerHTML=myListHTML();
-}
-function myListHTML(){
-  if(!state.myMedicines.length)return `<p>No medicines saved yet.</p>`;
-  return `<div class="list">${state.myMedicines.map(id=>{
-    const r=state.rows.find(x=>x.__id===id); if(!r)return"";
-    return `<div class="row"><div><b>${esc(r.brand_name||r.generic_name)}</b><small>${esc(r.generic_name)} • ${esc(r.strength)}</small></div><button class="ghost" data-remove-row="${id}">Remove</button></div>`;
-  }).join("")}</div>`;
-}
-async function checkDDI(){
-  const a=norm($("#ddiA").value),b=norm($("#ddiB").value),box=$("#ddiResult");
-  if(!a||!b){box.innerHTML=`<div class="row"><small>দুটি generic name দিন।</small></div>`;return}
-  box.innerHTML=`<div class="row"><small>Interaction dataset check হচ্ছে…</small></div>`;
-  try{
-    if(!state.ddi)state.ddi=await SMN_DATA.loadDDI(msg=>box.innerHTML=`<div class="row"><small>${esc(msg)}</small></div>`);
-    const rows=state.ddi;
-    const hdr=rows.length?Object.keys(rows[0]):[];
-    const candA=hdr.filter(x=>/(drug.?1|drug.?a|subject|primary|precipitant)/i.test(x));
-    const candB=hdr.filter(x=>/(drug.?2|drug.?b|affected|secondary|object)/i.test(x));
-    const descCols=hdr.filter(x=>/(interaction|description|sentence|label|text)/i.test(x));
-    const hits=[];
-    for(const r of rows){
-      const valsA=(candA.length?candA:hdr).map(k=>norm(r[k])).join(" ");
-      const valsB=(candB.length?candB:hdr).map(k=>norm(r[k])).join(" ");
-      const whole=hdr.map(k=>norm(r[k])).join(" ");
-      const pair=((valsA.includes(a)&&valsB.includes(b))||(valsA.includes(b)&&valsB.includes(a)));
-      const fallback=whole.includes(a)&&whole.includes(b);
-      if(pair||fallback){hits.push(r);if(hits.length>=10)break}
-    }
-    if(!hits.length){box.innerHTML=`<div class="row"><div><b>No direct match found</b><small>এটা interaction নেই—এমন প্রমাণ নয়। Dataset naming/mapping ভিন্ন হতে পারে।</small></div></div>`;return}
-    box.innerHTML=hits.map(r=>{
-      const txt=(descCols.map(k=>r[k]).find(Boolean)||JSON.stringify(r)).slice(0,850);
-      return `<div class="row"><div><b>Potential label-derived interaction</b><small>${esc(txt)}</small></div></div>`;
-    }).join("");
-  }catch(err){
-    box.innerHTML=`<div class="row"><div><b>Interaction dataset load হয়নি</b><small>${esc(err.message)}. Medicine database তবুও ব্যবহার করা যাবে।</small></div></div>`;
-  }
-}
-function initThree(){
-  const canvas=$("#heroCanvas"); if(!canvas||!window.THREE)return;
-  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,canvas.clientWidth/Math.max(canvas.clientHeight,1),.1,100);
-  const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));
-  const g=new THREE.Group();scene.add(g);
-  for(let i=0;i<65;i++){
-    const geo=new THREE.IcosahedronGeometry(.10+Math.random()*.05,1);
-    const mat=new THREE.MeshBasicMaterial({color:i%2?0x32e0c4:0x8f6bff});
-    const m=new THREE.Mesh(geo,mat);m.position.set((Math.random()-.5)*7,(Math.random()-.5)*4,(Math.random()-.5)*3);g.add(m)
-  }
-  camera.position.z=5;
-  function rs(){const w=canvas.clientWidth,h=canvas.clientHeight||420;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}rs();addEventListener("resize",rs);
-  let t=0;(function loop(){t+=.0035;g.rotation.y=t;g.rotation.x=Math.sin(t*.8)*.15;renderer.render(scene,camera);requestAnimationFrame(loop)})();
-}
-async function start(){
-  setLoading("বাংলাদেশ medicine corpus load হচ্ছে…");
-  try{
-    state.rows=await SMN_DATA.loadMedicineCorpus(setLoading);
-    state.counts=deriveCounts(state.rows);
-    state.supplementCandidates=makeSuppCandidates(state.rows);
-    removeLoading();render();initThree();
-  }catch(err){
-    setLoading("Dataset load করা যায়নি: "+err.message+" — GitHub Pages থেকে আবার refresh করুন।");
-  }
-}
+async function manualPair(){const a=$("#ddiA").value,b=$("#ddiB").value,box=$("#ddiResult");if(!a||!b){box.innerHTML=`<div class="row">Enter two generics.</div>`;return}box.innerHTML=`<div class="row">Checking…</div>`;try{const hits=await SMN_DATA.checkPair(a,b,null,10);box.innerHTML=hits.length?hits.map(x=>`<div class="row"><div><b>Potential interaction</b><small>${esc(x.description||"Pair found")}</small></div><span class="badge gold">${esc(x.severity||"review")}</span></div>`).join(""):`<div class="row"><small>${T("no_match")}</small></div>`}catch(e){box.innerHTML=`<div class="row"><small>${esc(e.message)}</small></div>`}}
+function addToMyList(id){if(!state.myMedicines.includes(id))state.myMedicines.push(id);localStorage.setItem("smn_meds_v3",JSON.stringify(state.myMedicines));if($("#myListPanel"))$("#myListPanel").innerHTML=myListHTML()}
+function removeFromMyList(id){state.myMedicines=state.myMedicines.filter(x=>x!==id);localStorage.setItem("smn_meds_v3",JSON.stringify(state.myMedicines));$("#myListPanel").innerHTML=myListHTML()}
+function myListHTML(){if(!state.myMedicines.length)return `<p>${state.lang==="bn"?"কোনো ওষুধ সেভ করা হয়নি।":"No medicines saved yet."}</p>`;return `<div class="list">${state.myMedicines.map(id=>{const r=state.rows.find(x=>x.__id===id);return r?`<div class="row"><div><b>${esc(r.brand_name||r.generic_name)}</b><small>${esc(r.generic_name)} • ${esc(r.strength)}</small></div><button class="ghost" data-remove-row="${id}">Remove</button></div>`:""}).join("")}</div><div class="actions"><button class="primary" id="reviewMyList">${state.lang==="bn"?"অটো ইন্টারঅ্যাকশন রিভিউ":"Auto Interaction Review"}</button></div><div id="myReview"></div>`}
+async function reviewMyList(){const meds=state.myMedicines.map(id=>state.rows.find(x=>x.__id===id)).filter(Boolean),box=$("#myReview");box.innerHTML=`<div class="row"><small>Checking pairwise interactions…</small></div>`;const out=[];for(let i=0;i<meds.length;i++)for(let j=i+1;j<meds.length;j++){try{const h=await SMN_DATA.checkPair(meds[i].generic_name,meds[j].generic_name,null,2);if(h.length)out.push({a:meds[i],b:meds[j],h})}catch(e){}}box.innerHTML=out.length?out.map(x=>`<div class="row"><div><b>${esc(x.a.generic_name)} ↔ ${esc(x.b.generic_name)}</b><small>${esc(x.h[0].description||"Interaction pair found")}</small></div></div>`).join(""):`<div class="row"><small>${T("no_match")}</small></div>`}
+function downloadShareCard(id){const r=state.rows.find(x=>x.__id===id);if(!r)return;const rules=localRules(r.generic_name);const c=document.createElement("canvas");c.width=1080;c.height=1350;const x=c.getContext("2d");const g=x.createLinearGradient(0,0,1080,1350);g.addColorStop(0,"#07101f");g.addColorStop(.55,"#102942");g.addColorStop(1,"#171f3f");x.fillStyle=g;x.fillRect(0,0,c.width,c.height);x.fillStyle="#3be0d0";x.font="bold 42px sans-serif";x.fillText("SHUDDHO MEDNUTRI",70,100);x.fillStyle="#ffffff";x.font="bold 64px sans-serif";wrap(x,r.brand_name||r.generic_name,70,230,930,76);x.font="36px sans-serif";x.fillStyle="#b7c7d7";wrap(x,r.generic_name+" • "+(r.strength||"")+" • "+(r.dosage_form||""),70,410,930,48);x.fillStyle="#ffffff";x.font="bold 34px sans-serif";x.fillText(state.lang==="bn"?"ইন্টারঅ্যাকশন ফোকাস":"Interaction focus",70,560);x.font="28px sans-serif";let y=620;for(const q of rules.slice(0,5)){x.fillStyle="#f1c66f";x.fillText("• "+(state.lang==="bn"?q.with_bn:q.with_en),80,y);x.fillStyle="#dce7f1";y=wrap(x,state.lang==="bn"?q.bn:q.en,110,y+40,860,38)+22}x.fillStyle="#9db0c2";x.font="24px sans-serif";x.fillText("Source: Bangladesh medicine reference corpus + clinical label sources",70,1240);x.fillText("© Shuddho Academy",70,1290);const a=document.createElement("a");a.href=c.toDataURL("image/png");a.download=(r.generic_name||"medicine").replace(/[^a-z0-9]+/gi,"-")+"-shuddho-mednutri.png";a.click()}
+function wrap(ctx,text,x,y,maxWidth,lineHeight){const words=String(text||"").split(" ");let line="";for(let n=0;n<words.length;n++){const test=line+words[n]+" ";if(ctx.measureText(test).width>maxWidth&&n>0){ctx.fillText(line,x,y);line=words[n]+" ";y+=lineHeight}else line=test}ctx.fillText(line,x,y);return y}
+function initThree(){const canvas=$("#heroCanvas");if(!canvas||!window.THREE)return;const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(60,canvas.clientWidth/Math.max(canvas.clientHeight,1),.1,100),renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));const g=new THREE.Group();scene.add(g);for(let i=0;i<68;i++){const geo=new THREE.IcosahedronGeometry(.10+Math.random()*.05,1),mat=new THREE.MeshBasicMaterial({color:i%3===0?0x3be0d0:i%3===1?0x6694ff:0x9a7cff}),m=new THREE.Mesh(geo,mat);m.position.set((Math.random()-.5)*7,(Math.random()-.5)*4,(Math.random()-.5)*3);g.add(m)}camera.position.z=5;function rs(){const w=canvas.clientWidth,h=canvas.clientHeight||440;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}rs();addEventListener("resize",rs);let t=0;(function loop(){t+=.0035;g.rotation.y=t;g.rotation.x=Math.sin(t*.8)*.15;renderer.render(scene,camera);requestAnimationFrame(loop)})()}
+async function start(){setLoading("Loading full Bangladesh medicine corpus…");try{state.rows=await SMN_DATA.loadMedicineCorpus(setLoading);state.counts=calcCounts(state.rows);state.suppCandidates=makeSupp(state.rows);state.curated=findCurated();removeLoading();render()}catch(e){setLoading("Dataset load failed: "+e.message)}}
 start();

@@ -1,120 +1,16 @@
 
-/*
-  SHUDDHO MEDNUTRI — FULL CORPUS REMOTE DATA LOADER
-
-  Medicine corpus:
-  CSE-3200-System-Project/Medora
-  data/medicine_reference/Final_Medicine_Dataset.csv
-  Consolidated corpus license: CC BY 4.0, with source notices in that repository.
-
-  DDI:
-  Zenodo record 19685458, ddi_2026.csv
-  Derived from FDA 2026 DailyMed labels.
-*/
-
 window.SMN_DATA = (() => {
-  const MEDICINE_URL =
-    "https://raw.githubusercontent.com/CSE-3200-System-Project/Medora/main/data/medicine_reference/Final_Medicine_Dataset.csv";
-
-  const DDI_URL =
-    "https://zenodo.org/records/19685458/files/ddi_2026.csv?download=1";
-
-  const CACHE = {
-    medicineText: null,
-    medicineRows: null,
-    ddiRows: null
-  };
-
-  function parseCSV(text) {
-    const rows = [];
-    let row = [], field = "", quoted = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-
-      if (quoted) {
-        if (c === '"' && text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else if (c === '"') {
-          quoted = false;
-        } else {
-          field += c;
-        }
-      } else {
-        if (c === '"') quoted = true;
-        else if (c === ",") {
-          row.push(field);
-          field = "";
-        } else if (c === "\n") {
-          row.push(field.replace(/\r$/, ""));
-          rows.push(row);
-          row = [];
-          field = "";
-        } else {
-          field += c;
-        }
-      }
-    }
-    if (field.length || row.length) {
-      row.push(field);
-      rows.push(row);
-    }
-
-    if (!rows.length) return [];
-    const headers = rows[0].map(x => x.trim());
-
-    return rows.slice(1)
-      .filter(r => r.some(v => String(v || "").trim()))
-      .map(r => {
-        const o = {};
-        headers.forEach((h, i) => o[h] = r[i] ?? "");
-        return o;
-      });
-  }
-
-  async function fetchText(url) {
-    const res = await fetch(url, {cache:"force-cache"});
-    if (!res.ok) throw new Error(`Could not load dataset: ${res.status}`);
-    return res.text();
-  }
-
-  async function loadMedicineCorpus(onProgress) {
-    if (CACHE.medicineRows) return CACHE.medicineRows;
-    onProgress?.("বাংলাদেশ medicine corpus ডাউনলোড হচ্ছে… প্রথমবার একটু সময় লাগতে পারে।");
-
-    const text = await fetchText(MEDICINE_URL);
-    CACHE.medicineText = text;
-
-    onProgress?.("71k+ medicine rows process করা হচ্ছে…");
-    const rows = parseCSV(text);
-
-    rows.forEach((r, idx) => {
-      r.__id = "MED_" + String(idx + 1).padStart(6, "0");
-      r.__search = [
-        r.generic_name, r.brand_name, r.manufacturer,
-        r.strength, r.dosage_form, r.common_uses, r.medicine_type
-      ].join(" ").toLowerCase().normalize("NFKC");
-    });
-
-    CACHE.medicineRows = rows;
-    return rows;
-  }
-
-  async function loadDDI(onProgress) {
-    if (CACHE.ddiRows) return CACHE.ddiRows;
-    onProgress?.("Interaction dataset load হচ্ছে…");
-    const text = await fetchText(DDI_URL);
-    const rows = parseCSV(text);
-    CACHE.ddiRows = rows;
-    return rows;
-  }
-
-  return {
-    MEDICINE_URL,
-    DDI_URL,
-    parseCSV,
-    loadMedicineCorpus,
-    loadDDI
-  };
+  const MEDICINE_URL="https://raw.githubusercontent.com/CSE-3200-System-Project/Medora/main/data/medicine_reference/Final_Medicine_Dataset.csv";
+  const DDI_URL="https://zenodo.org/records/19685458/files/ddi_2026.csv?download=1";
+  const OPENFDA="https://api.fda.gov/drug/label.json";
+  const cache={med:null,ddi:null,labels:new Map()};
+  function parseCSV(text){const rows=[];let row=[],field="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c=='"'&&text[i+1]=='"'){field+='"';i++}else if(c=='"')q=false;else field+=c}else{if(c=='"')q=true;else if(c==","){row.push(field);field=""}else if(c=="\n"){row.push(field.replace(/\r$/,""));rows.push(row);row=[];field=""}else field+=c}}if(field.length||row.length){row.push(field);rows.push(row)}if(!rows.length)return[];const h=rows[0].map(x=>x.trim());return rows.slice(1).filter(r=>r.some(v=>String(v||"").trim())).map(r=>{const o={};h.forEach((k,i)=>o[k]=r[i]??"");return o})}
+  async function fetchText(url){const r=await fetch(url,{cache:"force-cache"});if(!r.ok)throw new Error("HTTP "+r.status);return r.text()}
+  async function loadMedicineCorpus(cb){if(cache.med)return cache.med;cb?.("Loading Bangladesh medicine corpus…");const rows=parseCSV(await fetchText(MEDICINE_URL));rows.forEach((r,i)=>{r.__id="MED_"+String(i+1).padStart(6,"0");r.__search=[r.generic_name,r.brand_name,r.manufacturer,r.strength,r.dosage_form,r.common_uses,r.medicine_type].join(" ").toLowerCase().normalize("NFKC")});cache.med=rows;return rows}
+  async function loadDDI(cb){if(cache.ddi)return cache.ddi;cb?.("Loading drug–drug interaction dataset…");cache.ddi=parseCSV(await fetchText(DDI_URL));return cache.ddi}
+  function cols(rows){if(!rows?.length)return{a:[],b:[],desc:[],sev:[]};const h=Object.keys(rows[0]);return{a:h.filter(x=>/(drug.?1|drug.?a|subject|precipitant|primary)/i.test(x)),b:h.filter(x=>/(drug.?2|drug.?b|object|affected|secondary)/i.test(x)),desc:h.filter(x=>/(interaction|description|sentence|label|text|effect)/i.test(x)),sev:h.filter(x=>/(severity|risk|level)/i.test(x))}}
+  async function findDDIForGeneric(generic,cb,limit=60){const q=String(generic||"").toLowerCase().trim();if(!q)return[];const rows=await loadDDI(cb),c=cols(rows),out=[];for(const r of rows){const whole=Object.values(r).join(" ").toLowerCase();if(!whole.includes(q))continue;const va=c.a.map(k=>String(r[k]||"")).join(" "),vb=c.b.map(k=>String(r[k]||"")).join(" ");let other="";if(va.toLowerCase().includes(q))other=vb;else if(vb.toLowerCase().includes(q))other=va;out.push({other,description:c.desc.map(k=>r[k]).find(Boolean)||"",severity:c.sev.map(k=>r[k]).find(Boolean)||""});if(out.length>=limit)break}return out}
+  async function checkPair(a,b,cb,limit=10){const x=String(a||"").toLowerCase().trim(),y=String(b||"").toLowerCase().trim();if(!x||!y)return[];const rows=await loadDDI(cb),c=cols(rows),out=[];for(const r of rows){const whole=Object.values(r).join(" ").toLowerCase();if(!(whole.includes(x)&&whole.includes(y)))continue;out.push({description:c.desc.map(k=>r[k]).find(Boolean)||"",severity:c.sev.map(k=>r[k]).find(Boolean)||""});if(out.length>=limit)break}return out}
+  async function loadOpenFDALabel(generic){const key=String(generic||"").trim().toLowerCase();if(!key)return null;if(cache.labels.has(key))return cache.labels.get(key);try{const q=encodeURIComponent(`openfda.generic_name:"${generic}"`),r=await fetch(`${OPENFDA}?search=${q}&limit=3`,{cache:"force-cache"});if(!r.ok){cache.labels.set(key,null);return null}const j=await r.json(),x=j.results?.[0]||null;cache.labels.set(key,x);return x}catch(e){cache.labels.set(key,null);return null}}
+  return {MEDICINE_URL,DDI_URL,OPENFDA,loadMedicineCorpus,loadDDI,findDDIForGeneric,checkPair,loadOpenFDALabel};
 })();
