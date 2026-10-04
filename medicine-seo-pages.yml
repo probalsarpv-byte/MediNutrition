@@ -1,0 +1,239 @@
+name: Build Medicine SEO Pages
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/medicine-seo-pages.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: medicine-seo-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout MediNutrition
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download current licensed medicine corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 4 --retry-delay 3 \
+            "https://raw.githubusercontent.com/CSE-3200-System-Project/Medora/main/data/medicine_reference/Final_Medicine_Dataset.csv" \
+            -o medicine-source.csv
+          test -s medicine-source.csv
+          sha256sum medicine-source.csv | awk '{print $1}' > .medicine-source.sha256
+
+      - name: Generate medicine SEO pages
+        shell: bash
+        env:
+          BASE_URL: "https://probalsarpv-byte.github.io/MediNutrition"
+          GENERATOR_VERSION: "2.0.0"
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          const SOURCE_FILE = "medicine-source.csv";
+          const BASE_URL = (process.env.BASE_URL || "").replace(/\/+$/, "");
+          const OUT_ROOT = "medicine";
+
+          function parseCSV(text){
+            const rows=[]; let row=[],field="",q=false;
+            for(let i=0;i<text.length;i++){
+              const c=text[i];
+              if(q){
+                if(c=='"'&&text[i+1]=='"'){field+='"';i++}
+                else if(c=='"') q=false;
+                else field+=c;
+              } else {
+                if(c=='"') q=true;
+                else if(c==","){row.push(field);field=""}
+                else if(c=="\n"){row.push(field.replace(/\r$/,""));rows.push(row);row=[];field=""}
+                else field+=c;
+              }
+            }
+            if(field.length||row.length){row.push(field.replace(/\r$/,""));rows.push(row)}
+            const h=rows[0].map(x=>String(x||"").replace(/^\uFEFF/,"").trim());
+            return rows.slice(1).filter(r=>r.some(v=>String(v||"").trim())).map(r=>{
+              const o={}; h.forEach((k,i)=>o[k]=r[i]??""); return o;
+            });
+          }
+
+          const clean=v=>String(v??"").replace(/\s+/g," ").trim();
+          const norm=v=>clean(v).toLowerCase().normalize("NFKC");
+          const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+          function slugify(v){
+            return String(v||"").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
+              .replace(/&/g," and ").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").replace(/-{2,}/g,"-").slice(0,120)||"medicine";
+          }
+          const unique=a=>[...new Set(a.map(clean).filter(Boolean))];
+
+          const rows=parseCSV(fs.readFileSync(SOURCE_FILE,"utf8"));
+          if(!rows.length) throw new Error("Medicine CSV is empty");
+          ["generic_name","brand_name","strength","dosage_form"].forEach(k=>{
+            if(!(k in rows[0])) throw new Error("Missing required column: "+k);
+          });
+
+          const brands=new Map(), generics=new Map();
+          for(const r of rows){
+            const b=clean(r.brand_name), g=clean(r.generic_name);
+            if(b){
+              const k=norm(b);
+              if(!brands.has(k)) brands.set(k,[]);
+              brands.get(k).push(r);
+            }
+            if(g){
+              const k=clean(r.drug_key)||[g,clean(r.strength),clean(r.dosage_form)].join("|");
+              if(!generics.has(k)) generics.set(k,[]);
+              generics.get(k).push(r);
+            }
+          }
+
+          const brandSlug=new Map(), genericSlug=new Map(), usedB=new Map(), usedG=new Map();
+          for(const [k,g] of brands){
+            let s=slugify(g[0].brand_name), n=(usedB.get(s)||0)+1; usedB.set(s,n);
+            if(n>1)s+=`-${n}`; brandSlug.set(k,s);
+          }
+          for(const [k,g] of generics){
+            const r=g[0]; let s=slugify([r.generic_name,r.strength,r.dosage_form].filter(Boolean).join(" "));
+            let n=(usedG.get(s)||0)+1; usedG.set(s,n); if(n>1)s+=`-${n}`; genericSlug.set(k,s);
+          }
+
+          const genericKey=r=>clean(r.drug_key)||[clean(r.generic_name),clean(r.strength),clean(r.dosage_form)].join("|");
+          const genericUrl=r=>`${BASE_URL}/medicine/generic/${genericSlug.get(genericKey(r))}/`;
+          const brandUrl=n=>`${BASE_URL}/medicine/brand/${brandSlug.get(norm(n))}/`;
+
+          function shell(title,desc,url,breadcrumb,body,jsonLd){
+            return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+            <link rel="canonical" href="${esc(url)}"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(url)}">
+            <script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g,"\\u003c")}</script>
+            <style>body{margin:0;background:#07111f;color:#f4f8fb;font-family:Arial,sans-serif;line-height:1.65}a{color:#57d39b}.w{width:min(1080px,calc(100% - 28px));margin:auto}.top{padding:18px 0}.crumb{color:#aab9c8;font-size:14px;margin-bottom:18px}.hero,.card{border:1px solid #21364e;border-radius:20px;padding:22px;background:#0c1a2b;margin-bottom:16px}.hero{background:linear-gradient(135deg,#0b6b4b,#0d3343)}h1{font-size:clamp(30px,5vw,48px);margin:.2em 0}.grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px}.fact{background:#102238;border-radius:12px;padding:10px;margin:8px 0}.muted{color:#aab9c8}.notice{background:#2c2511;border:1px solid #5d4b1b;border-radius:14px;padding:14px;color:#f1df9e}.list a{display:block;padding:9px 0;border-bottom:1px solid #21364e;text-decoration:none}footer{padding:25px 0 40px;border-top:1px solid #21364e;color:#aab9c8}@media(max-width:780px){.grid{grid-template-columns:1fr}}</style>
+            </head><body><div class="w"><div class="top"><a href="${BASE_URL}/">← SHUDDHO MedNutri</a></div><nav class="crumb">${breadcrumb}</nav>${body}<footer><a href="${BASE_URL}/medicine/">Medicine Directory</a> · <a href="${BASE_URL}/">MedNutri App</a><br>Reference only; not a prescription or treatment recommendation.</footer></div></body></html>`;
+          }
+
+          fs.rmSync(OUT_ROOT,{recursive:true,force:true});
+          fs.mkdirSync(path.join(OUT_ROOT,"brand"),{recursive:true});
+          fs.mkdirSync(path.join(OUT_ROOT,"generic"),{recursive:true});
+
+          const brandUrls=[], genericUrls=[], search=[];
+          for(const [k,g] of brands){
+            const name=clean(g[0].brand_name), slug=brandSlug.get(k), url=`${BASE_URL}/medicine/brand/${slug}/`;
+            const gens=unique(g.map(r=>r.generic_name)), mans=unique(g.map(r=>r.manufacturer)), types=unique(g.map(r=>r.medicine_type));
+            const title=`${name} Medicine: Generic, Strength & Manufacturer | SHUDDHO MedNutri`;
+            const desc=`${name} medicine reference for Bangladesh. See generic name, strength, dosage form, manufacturer and medicine type from the public medicine corpus.`;
+            const rowsHtml=g.slice(0,100).map(r=>`<div class="fact"><a href="${esc(genericUrl(r))}">${esc(clean(r.generic_name)||"Generic")}</a> · ${esc(clean(r.strength)||"—")} · ${esc(clean(r.dosage_form)||"—")} · ${esc(clean(r.manufacturer)||"—")}</div>`).join("");
+            const body=`<main><section class="hero"><div class="muted">Bangladesh medicine reference</div><h1>${esc(name)}</h1><p>${esc(gens.slice(0,4).join(", "))}</p></section><div class="grid"><article><section class="card"><h2>${esc(name)} medicine information</h2><p>This page groups public corpus records sharing this brand name. Exact strength, dosage form and manufacturer may vary.</p><div class="fact"><b>Generic:</b> ${esc(gens.join(", ")||"Not specified")}</div><div class="fact"><b>Manufacturer:</b> ${esc(mans.join(", ")||"Not specified")}</div><div class="fact"><b>Type:</b> ${esc(types.join(", ")||"Not specified")}</div></section><section class="card"><h2>Corpus formulations</h2>${rowsHtml}</section><section class="card"><h2>Source & safety</h2><p>This corpus is a public reference dataset and is not presented as a current official DGDA register.</p><div class="notice">Do not start, stop, switch brand or change dose based only on this page.</div></section></article><aside><section class="card"><h2>Quick details</h2><p><b>Brand:</b><br>${esc(name)}</p><p><b>Generic:</b><br>${esc(gens.join(", ")||"Not specified")}</p></section></aside></div></main>`;
+            const ld={"@context":"https://schema.org","@graph":[{"@type":"WebPage","url":url,"name":title,"description":desc},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"MedNutri","item":`${BASE_URL}/`},{"@type":"ListItem","position":2,"name":"Medicine Directory","item":`${BASE_URL}/medicine/`},{"@type":"ListItem","position":3,"name":name,"item":url}]}]};
+            const dir=path.join(OUT_ROOT,"brand",slug); fs.mkdirSync(dir,{recursive:true});
+            fs.writeFileSync(path.join(dir,"index.html"),shell(title,desc,url,`<a href="${BASE_URL}/">MedNutri</a> › <a href="${BASE_URL}/medicine/">Medicine Directory</a> › ${esc(name)}`,body,ld));
+            brandUrls.push(url); search.push({type:"brand",name,generic:gens.join(" | "),manufacturer:mans.join(" | "),url});
+          }
+
+          for(const [k,g] of generics){
+            const r=g[0], slug=genericSlug.get(k), url=`${BASE_URL}/medicine/generic/${slug}/`;
+            const generic=clean(r.generic_name), strength=clean(r.strength), form=clean(r.dosage_form);
+            const label=[generic,strength,form].filter(Boolean).join(" "), bs=unique(g.map(x=>x.brand_name)).sort();
+            const title=`${label}: Brands & Manufacturers in Bangladesh | SHUDDHO MedNutri`;
+            const desc=`${label} medicine reference. Browse public corpus brand names, manufacturers, dosage form and medicine type for Bangladesh.`;
+            const links=bs.slice(0,150).map(n=>`<a href="${esc(brandUrl(n))}">${esc(n)}</a>`).join("");
+            const body=`<main><section class="hero"><div class="muted">Generic / formulation reference</div><h1>${esc(label)}</h1></section><div class="grid"><article><section class="card"><h2>${esc(generic)} reference</h2><p>This page groups records for the same formulation identity and helps users discover matching brands.</p><div class="fact"><b>Generic:</b> ${esc(generic)}</div><div class="fact"><b>Strength:</b> ${esc(strength||"Not specified")}</div><div class="fact"><b>Dosage form:</b> ${esc(form||"Not specified")}</div></section><section class="card list"><h2>Brand names</h2>${links||"<p>No brand name recorded.</p>"}</section><section class="card"><div class="notice">This page does not provide a personal indication, dose or prescribing recommendation.</div></section></article><aside><section class="card"><h2>Corpus count</h2><p>${bs.length} unique brand names linked to this formulation.</p></section></aside></div></main>`;
+            const ld={"@context":"https://schema.org","@graph":[{"@type":"WebPage","url":url,"name":title,"description":desc},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"MedNutri","item":`${BASE_URL}/`},{"@type":"ListItem","position":2,"name":"Medicine Directory","item":`${BASE_URL}/medicine/`},{"@type":"ListItem","position":3,"name":label,"item":url}]}]};
+            const dir=path.join(OUT_ROOT,"generic",slug); fs.mkdirSync(dir,{recursive:true});
+            fs.writeFileSync(path.join(dir,"index.html"),shell(title,desc,url,`<a href="${BASE_URL}/">MedNutri</a> › <a href="${BASE_URL}/medicine/">Medicine Directory</a> › ${esc(label)}`,body,ld));
+            genericUrls.push(url); search.push({type:"generic",name:generic,strength,dosage_form:form,url});
+          }
+
+          const alpha=["0-9",..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+          function bucket(v){const c=slugify(v)[0]?.toUpperCase(); return /^[A-Z]$/.test(c)?c:"0-9";}
+          function writeIndex(kind,items){
+            const root=path.join(OUT_ROOT,kind); fs.mkdirSync(root,{recursive:true});
+            const map=new Map(alpha.map(x=>[x,[]]));
+            for(const x of items) map.get(bucket(x.name)).push(x);
+            for(const a of alpha){
+              const dir=path.join(root,a.toLowerCase()); fs.mkdirSync(dir,{recursive:true});
+              const url=`${BASE_URL}/medicine/${kind}/${a.toLowerCase()}/`;
+              const links=map.get(a).sort((x,y)=>x.name.localeCompare(y.name)).map(x=>`<a href="${x.url}">${esc(x.name)}</a>`).join("");
+              const body=`<main><section class="hero"><h1>${kind==="brands"?"Medicine Brands":"Medicine Generics"} — ${a}</h1></section><section class="card list">${links||"<p>No entries.</p>"}</section></main>`;
+              fs.writeFileSync(path.join(dir,"index.html"),shell(`${kind==="brands"?"Medicine Brands":"Medicine Generics"} ${a} | SHUDDHO MedNutri`,`Alphabetical medicine directory for ${a}.`,url,`<a href="${BASE_URL}/medicine/">Medicine Directory</a> › ${a}`,body,{"@context":"https://schema.org","@type":"CollectionPage","url":url}));
+            }
+            const url=`${BASE_URL}/medicine/${kind}/`;
+            const links=alpha.map(a=>`<a href="${url}${a.toLowerCase()}/">${a}</a>`).join("");
+            const body=`<main><section class="hero"><h1>${kind==="brands"?"Medicine Brands":"Medicine Generics"}</h1></section><section class="card list">${links}</section></main>`;
+            fs.writeFileSync(path.join(root,"index.html"),shell(`${kind==="brands"?"Medicine Brands":"Medicine Generics"} | SHUDDHO MedNutri`,`Alphabetical medicine directory.`,url,`<a href="${BASE_URL}/medicine/">Medicine Directory</a>`,body,{"@context":"https://schema.org","@type":"CollectionPage","url":url}));
+          }
+
+          writeIndex("brands",[...brands].map(([k,g])=>({name:clean(g[0].brand_name),url:brandUrl(clean(g[0].brand_name))})));
+          writeIndex("generics",[...generics].map(([k,g])=>({name:[clean(g[0].generic_name),clean(g[0].strength),clean(g[0].dosage_form)].filter(Boolean).join(" "),url:`${BASE_URL}/medicine/generic/${genericSlug.get(k)}/`})));
+
+          const medHome=`${BASE_URL}/medicine/`;
+          const homeBody=`<main><section class="hero"><h1>Bangladesh Medicine Directory</h1><p>Brand-name and generic/formulation reference pages.</p></section><section class="card list"><a href="${BASE_URL}/medicine/brands/">Browse medicine brands (${brands.size})</a><a href="${BASE_URL}/medicine/generics/">Browse generic/formulation pages (${generics.size})</a><a href="${BASE_URL}/">Open interactive MedNutri database</a></section></main>`;
+          fs.writeFileSync(path.join(OUT_ROOT,"index.html"),shell("Bangladesh Medicine Directory | SHUDDHO MedNutri",`Medicine reference directory with ${brands.size} brand-name pages and ${generics.size} generic/formulation pages.`,medHome,`Medicine Directory`,homeBody,{"@context":"https://schema.org","@type":"CollectionPage","url":medHome}));
+
+          fs.writeFileSync("medicine-search-index.json",JSON.stringify(search));
+          fs.writeFileSync(".nojekyll","");
+
+          const indexUrls=[
+            medHome,`${BASE_URL}/medicine/brands/`,`${BASE_URL}/medicine/generics/`,
+            ...alpha.map(a=>`${BASE_URL}/medicine/brands/${a.toLowerCase()}/`),
+            ...alpha.map(a=>`${BASE_URL}/medicine/generics/${a.toLowerCase()}/`)
+          ];
+          const urls=[...new Set([...indexUrls,...brandUrls,...genericUrls])];
+          const names=[];
+          for(let i=0;i<urls.length;i+=8000){
+            const name=`sitemap-medicine-${String(i/8000+1).padStart(2,"0")}.xml`;
+            const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.slice(i,i+8000).map(u=>`  <url><loc>${esc(u)}</loc></url>`).join("\n")}\n</urlset>\n`;
+            fs.writeFileSync(name,xml); names.push(name);
+          }
+          fs.writeFileSync("sitemap-medicine.xml",`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${names.map(n=>`  <sitemap><loc>${BASE_URL}/${n}</loc></sitemap>`).join("\n")}\n</sitemapindex>\n`);
+          fs.writeFileSync("robots.txt",`User-agent: *\nAllow: /\n\nSitemap: ${BASE_URL}/sitemap-medicine.xml\n`);
+          fs.writeFileSync("medicine-seo-manifest.json",JSON.stringify({source_rows:rows.length,unique_brand_pages:brands.size,unique_generic_formulation_pages:generics.size,sitemap_urls:urls.length,sitemap_files:names.length},null,2));
+
+          console.log(`Rows: ${rows.length}`);
+          console.log(`Brand pages: ${brands.size}`);
+          console.log(`Generic pages: ${generics.size}`);
+          console.log(`Sitemap URLs: ${urls.length}`);
+          NODE
+
+      - name: Sanity-check generated site
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f medicine/index.html
+          test -f sitemap-medicine.xml
+          test -f robots.txt
+          test -f medicine-seo-manifest.json
+          BRAND_COUNT=$(find medicine/brand -mindepth 1 -maxdepth 1 -type d | wc -l)
+          GENERIC_COUNT=$(find medicine/generic -mindepth 1 -maxdepth 1 -type d | wc -l)
+          echo "Brand pages: $BRAND_COUNT"
+          echo "Generic pages: $GENERIC_COUNT"
+          test "$BRAND_COUNT" -gt 1000
+          test "$GENERIC_COUNT" -gt 1000
+
+      - name: Commit generated medicine SEO pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add medicine medicine-search-index.json medicine-seo-manifest.json sitemap-medicine.xml sitemap-medicine-*.xml robots.txt .nojekyll .medicine-source.sha256
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto-generate medicine SEO pages"
+          git push
